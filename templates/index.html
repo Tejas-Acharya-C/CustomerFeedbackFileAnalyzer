@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Customer Feedback Pulse</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <div class="bg-shape bg-shape-a"></div>
+  <div class="bg-shape bg-shape-b"></div>
+
+  <main class="page">
+    <section class="hero reveal">
+      <div class="theme-switch-wrap">
+        <button id="themeToggle" class="btn btn-theme" type="button" aria-label="Toggle theme">Dark Glass</button>
+      </div>
+      <p class="kicker">Feedback Analyzer</p>
+      <h1>Upload. Analyze. Improve.</h1>
+      <p class="sub">Upload a TXT/CSV file, inspect sentiment trends, search comments, and compare two datasets.</p>
+    </section>
+
+    <section class="toolbar reveal delay-1">
+      <div class="control">
+        <label for="feedbackFile">Primary File</label>
+        <input id="feedbackFile" type="file" accept=".txt,.csv,text/plain,text/csv">
+      </div>
+      <div class="control">
+        <label for="compareFile">Compare File (Optional)</label>
+        <input id="compareFile" type="file" accept=".txt,.csv,text/plain,text/csv">
+      </div>
+      <button id="refreshBtn" class="btn">Analyze</button>
+      <button id="compareBtn" class="btn btn-soft">Compare</button>
+      <div class="search-wrap">
+        <input id="keyword" type="text" placeholder="Search keyword (e.g. delivery)">
+        <button id="searchBtn" class="btn btn-alt">Search</button>
+      </div>
+      <div class="inline-options">
+        <label><input id="caseSensitive" type="checkbox"> Case sensitive</label>
+        <label>
+          Match mode
+          <select id="matchMode">
+            <option value="partial">Partial</option>
+            <option value="exact">Exact word</option>
+          </select>
+        </label>
+        <label>
+          Sentiment
+          <select id="sentimentFilter">
+            <option value="all">All</option>
+            <option value="positive">Positive</option>
+            <option value="negative">Negative</option>
+            <option value="neutral">Neutral</option>
+          </select>
+        </label>
+        <label>
+          Min rating
+          <select id="minRating">
+            <option value="">Any</option>
+            <option value="1">1+</option>
+            <option value="2">2+</option>
+            <option value="3">3+</option>
+            <option value="4">4+</option>
+            <option value="5">5</option>
+          </select>
+        </label>
+        <button id="exportBtn" class="btn btn-ghost" type="button">Export Search</button>
+        <button id="exportSummaryBtn" class="btn btn-ghost" type="button">Export Summary</button>
+      </div>
+    </section>
+
+    <p id="status" class="status muted">Select a file and click Analyze.</p>
+    <div id="loading" class="loading hidden">Processing...</div>
+
+    <section class="grid reveal delay-2">
+      <article class="card">
+        <h2>Overview</h2>
+        <div id="stats" class="stats"></div>
+      </article>
+
+      <article class="card">
+        <h2>Sentiment</h2>
+        <div id="sentimentBars"></div>
+      </article>
+
+      <article class="card">
+        <h2>Top Words</h2>
+        <ul id="topWords" class="list"></ul>
+      </article>
+
+      <article class="card">
+        <h2>Negative Signals</h2>
+        <ul id="negativeWords" class="list"></ul>
+      </article>
+
+      <article class="card">
+        <h2>Category Breakdown</h2>
+        <ul id="categories" class="list"></ul>
+      </article>
+
+      <article class="card">
+        <h2>Ratings (CSV)</h2>
+        <div id="ratings"></div>
+      </article>
+
+      <article class="card">
+        <h2>Action Suggestions</h2>
+        <ul id="suggestions" class="list"></ul>
+      </article>
+
+      <article class="card">
+        <h2>Top Issues To Fix First</h2>
+        <ul id="priorityInsights" class="list"></ul>
+      </article>
+
+      <article class="card">
+        <h2>Comparison Summary</h2>
+        <div id="compareSummary" class="muted">Upload second file and click Compare.</div>
+      </article>
+
+      <article class="card card-wide">
+        <h2>Search Results</h2>
+        <p id="searchMeta" class="muted">Run a keyword search to inspect matching feedback.</p>
+        <ol id="searchResults" class="results"></ol>
+      </article>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
