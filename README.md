@@ -1,93 +1,97 @@
-# Customer Feedback File Analyzer
+# 📊 Customer Feedback File Analyzer
 
-Web + CLI project for analyzing customer feedback from uploaded `.txt`/`.csv` files.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Flask](https://img.shields.io/badge/framework-Flask-lightgrey.svg)](https://flask.palletsprojects.com/)
 
-## Highlights
+A powerful, high-performance toolkit for analyzing customer sentiment, keyword frequency, and priority insights from raw feedback data. Features both a **modern Web Interface** and a **streamlined CLI tool**.
 
-- Mandatory upload workflow (no local fallback files in web app)
-- Strict CSV validation (`Name`, `Rating`, `Category`, `Feedback`)
-- Sentiment, top words, negative-signal words, categories, rating distribution
-- Priority insights (top issues to fix first)
-- Smart search with options:
-  - Case-sensitive toggle
-  - Partial or exact word matching
-  - Sentiment filter and minimum rating filter
-  - Result highlighting + export
-- Executive summary export
-  - PDF executive summary with organized layout
-- Compare two uploaded datasets
-- Inline UX status + loading states
-- API rate limiting + upload size limit + centralized error responses
-- Test suite for service + API
+---
 
-## Setup
+## 🔥 Key Features
 
+### 💻 Modern Web Dashboard
+- **Universal Upload**: Seamlessly process `.txt` and `.csv` feedback files.
+- **Deep Analytics**: Automatic sentiment scoring, category detection, and rating distribution.
+- **Priority Insights**: Identify "Red Flag" issues and critical feedback needing immediate attention.
+- **Smart Search**: Advanced filtering by sentiment, rating, and match precision.
+- **Data Comparison**: Compare two datasets (e.g., Q1 vs Q2) to track performance trends over time.
+- **PDF Export**: Generate professional executive summaries in one click.
+
+### 🛠️ Developer-First CLI
+- Fast, menu-driven interface for local analysis.
+- Instant statistics and word frequency reports.
+- Lightweight and portable.
+
+---
+
+## 🚀 Quick Start
+
+### 1. Installation
+Clone the repository and install dependencies:
 ```powershell
-pip install -r requirements-dev.txt
+git clone <your-repo-url>
+cd "Customer Feedback File Analyzer Project"
+pip install -r requirements.txt
 ```
 
-## Run (Development)
+### 2. Configure Environment
+Copy the example environment file:
+```powershell
+cp .env.example .env
+```
 
+### 3. Run the Application
+**Web Interface:**
 ```powershell
 python app.py
 ```
+Visit `http://127.0.0.1:5000` in your browser.
 
-Open: `http://127.0.0.1:5000`
-
-## Run (Production)
-
-Linux/macOS with gunicorn:
-
-```bash
-gunicorn -w 2 -b 0.0.0.0:8000 wsgi:app --timeout 60
-```
-
-Windows with waitress:
-
+**CLI Tool:**
 ```powershell
-waitress-serve --listen=0.0.0.0:8000 wsgi:app
+python main.py
 ```
 
-## Environment Variables
+---
 
-Copy `.env.example` values as needed:
-
-- `MAX_UPLOAD_MB` (default: `5`)
-- `RATE_LIMIT_PER_MIN` (default: `60`)
-- `LOG_LEVEL` (default: `INFO`)
-- `FLASK_DEBUG` (default: `1`)
-- `TRUST_PROXY_HEADERS` (default: `0`; set `1` only behind a trusted proxy)
-- `REPORT_BRAND_NAME` (default: `Customer Feedback Pulse`; used in PDF header)
-
-## API
-
-All API responses are consistent:
-
-- Success: `{ "ok": true, "data": { ... } }`
-- Error: `{ "ok": false, "error": { "code": "...", "message": "..." } }`
-
-Endpoints:
-
-- `POST /api/analyze` (`feedback_file`)
-- `POST /api/search` (`feedback_file`, `keyword`, optional `case_sensitive`, `match_mode`, `sentiment_filter`, `min_rating`)
-- `POST /api/compare` (`feedback_file`, `feedback_file_compare`)
-- `GET /api/health`
-- `POST /api/export-summary-pdf` (`analysis` JSON payload from latest analysis response)
-
-## Tests
-
+## 🧪 Testing & Quality
+Ensure everything is running smoothly with the automated test suite:
 ```powershell
-pytest -q
+pytest
 ```
 
-## Docker
+---
 
+## 🐳 Docker Deployment
+Build and run with Docker for consistent production environments:
 ```bash
 docker build -t feedback-analyzer .
 docker run -p 8000:8000 feedback-analyzer
 ```
 
-## Deploy Online (GitHub + Render)
+---
 
-- This repository includes `render.yaml` for one-click Render deployment.
-- Follow `DEPLOY_GITHUB_RENDER.md` for full steps.
+## 📂 Project Structure
+```text
+├── app.py                # Flask Web Entry Point
+├── main.py               # CLI Tool Entry Point
+├── analysis_service.py   # High-level business logic
+├── feedback_analyzer.py  # Core NLP & processing
+├── pdf_export.py         # PDF generation engine
+├── api_schemas.py        # Data validation schemas
+├── wsgi.py               # Production server entry
+├── static/               # CSS, JS, and Images
+├── templates/            # HTML Dashboards
+├── tests/                # Unit & Integration Tests
+└── data/                 # Sample datasets
+```
+
+---
+
+## 📄 License
+This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
+
+---
+
+**Developed with ❤️ for Customer Excellence.**
