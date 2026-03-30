@@ -14,6 +14,10 @@ def client():
     with app.test_client() as c:
         yield c
 
+def get_session(client, csv_bytes: bytes, filename: str = "feedback.csv") -> str:
+    data = {"feedback_file": (io.BytesIO(csv_bytes), filename)}
+    res = client.post("/api/analyze", data=data, content_type="multipart/form-data")
+    return res.get_json()["data"]["session_id"]
 
 def test_analyze_requires_upload(client):
     res = client.post("/api/analyze", data={})
@@ -30,13 +34,14 @@ def test_analyze_success(client):
     assert res.status_code == 200
     body = res.get_json()
     assert body["ok"] is True
-    assert body["data"]["stats"]["total"] == 2
+    assert "session_id" in body["data"]
 
 
 def test_search_with_options(client):
     csv = b"Name,Rating,Category,Feedback\nA,4,Delivery,Package Late\nB,5,Service,Great support"
+    sid = get_session(client, csv)
     data = {
-        "feedback_file": (io.BytesIO(csv), "feedback.csv"),
+        "sid": sid,
         "keyword": "Late",
         "case_sensitive": "true",
         "match_mode": "exact",
@@ -55,8 +60,9 @@ def test_search_with_sentiment_and_rating_filters(client):
         b"B,5,Service,Great support and fast delivery\n"
         b"C,4,Delivery,Good packaging and quick delivery"
     )
+    sid = get_session(client, csv)
     data = {
-        "feedback_file": (io.BytesIO(csv), "feedback.csv"),
+        "sid": sid,
         "keyword": "delivery",
         "case_sensitive": "false",
         "match_mode": "partial",
@@ -73,8 +79,9 @@ def test_search_with_sentiment_and_rating_filters(client):
 
 def test_search_invalid_min_rating_returns_400(client):
     csv = b"Name,Rating,Category,Feedback\nA,4,Delivery,Package Late"
+    sid = get_session(client, csv)
     data = {
-        "feedback_file": (io.BytesIO(csv), "feedback.csv"),
+        "sid": sid,
         "keyword": "late",
         "min_rating": "abc",
     }
@@ -85,17 +92,8 @@ def test_search_invalid_min_rating_returns_400(client):
 
 
 def test_export_summary_pdf_success(client):
-    analysis = {
-        "file": {"name": "feedback.csv"},
-        "stats": {"total": 10, "avg_length": 45.2},
-        "average_rating": 3.8,
-        "sentiment_percent": {"Positive": 50, "Negative": 30, "Neutral": 20},
-        "priority_insights": [
-            {"title": "Reduce negatives", "evidence": "Negatives at 30%", "action": "Review top complaints"}
-        ],
-        "suggestions": ["Improve support response time"],
-    }
-    res = client.post("/api/export-summary-pdf", json={"analysis": analysis})
+    sid = get_session(client, b"Good feedback")
+    res = client.get(f"/api/export-summary-pdf?sid={sid}")
     assert res.status_code == 200
     assert res.content_type == "application/pdf"
     assert res.data.startswith(b"%PDF")
@@ -127,4 +125,8 @@ def test_filename_is_sanitized(client):
     assert res.status_code == 200
     body = res.get_json()
     assert body["ok"] is True
-    assert "<" not in body["data"]["file"]["name"]
+
+    # Validate that we can extract the analysis dataset and verify the sanitized name
+    sid = body["data"]["session_id"]
+    data_res = client.get(f"/api/data?sid={sid}")
+    assert "<" not in data_res.get_json()["data"]["file"]["name"]

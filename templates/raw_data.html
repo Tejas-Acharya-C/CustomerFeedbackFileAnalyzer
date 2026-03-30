@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Raw Data Engine{% endblock %}
+
+{% block status_prompt %}Analysis complete. Viewing Raw Node Data.{% endblock %}
+
+{% block content %}
+<!-- VIEW: RAW DATA -->
+<section id="view-raw-data" class="glass-panel rounded-lg overflow-hidden flex flex-col gap-6 p-6">
+    <!-- Search Tools -->
+    <div class="flex flex-wrap items-center gap-6 pb-6 border-b border-white/5">
+        <div class="flex-1 min-w-[300px] relative">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500">search</span>
+            <input id="keyword" class="w-full bg-surface-container-lowest border-0 rounded-sm text-sm pl-10 pr-20 py-3 focus:ring-1 focus:ring-cyan-500/50" placeholder="Search outputs..." type="text"/>
+            <button id="searchBtn" class="absolute right-2 top-1/2 -translate-y-1/2 bg-cyan-500/10 text-cyan-400 px-3 py-1 rounded hover:bg-cyan-500/20">Search</button>
+        </div>
+        <div class="flex flex-wrap items-center gap-4">
+            <div class="flex items-center gap-2">
+                <input class="rounded-sm bg-surface-container-lowest border-white/10 text-cyan-400 focus:ring-0" id="caseSensitive" type="checkbox"/>
+                <label class="text-[10px] font-headline uppercase tracking-widest text-zinc-400" for="caseSensitive">Case Sensitive</label>
+            </div>
+            <select id="matchMode" class="bg-surface-container-lowest border-0 text-[10px] font-headline uppercase tracking-widest text-zinc-400 rounded-sm py-2 px-3 focus:ring-0">
+                <option value="partial">Fuzzy</option>
+                <option value="exact">Exact</option>
+            </select>
+            <select id="sentimentFilter" class="bg-surface-container-lowest border-0 text-[10px] font-headline uppercase tracking-widest text-zinc-400 rounded-sm py-2 px-3 focus:ring-0">
+                <option value="all">Sent: All</option>
+                <option value="positive">Positive</option>
+                <option value="negative">Negative</option>
+                <option value="neutral">Neutral</option>
+            </select>
+            <select id="minRating" class="bg-surface-container-lowest border-0 text-[10px] font-headline uppercase tracking-widest text-zinc-400 rounded-sm py-2 px-3 focus:ring-0">
+                <option value="">Rate: Any</option>
+                <option value="1">1+</option>
+                <option value="2">2+</option>
+                <option value="3">3+</option>
+                <option value="4">4+</option>
+                <option value="5">5</option>
+            </select>
+        </div>
+        <div class="flex gap-2">
+            <button id="exportBtn" class="p-2 text-zinc-500 hover:text-cyan-400 transition-colors" title="Export Search"><span class="material-symbols-outlined">file_export</span></button>
+            <button id="exportSummaryBtn" class="p-2 text-zinc-500 hover:text-secondary transition-colors" title="Export Summary"><span class="material-symbols-outlined">summarize</span></button>
+        </div>
+    </div>
+
+    <!-- Results Table -->
+    <div>
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-[10px] font-headline uppercase tracking-[0.2em] text-cyan-400 drop-shadow-[0_0_5px_rgba(0,219,231,0.5)]">DATA ARBITRAGE & NODE INTELLIGENCE</h3>
+            <div id="searchMeta" class="text-[10px] uppercase font-headline text-zinc-500"></div>
+        </div>
+        <div class="overflow-x-auto">
+            <ol id="searchResults" class="space-y-3 p-4"></ol>
+        </div>
+    </div>
+</section>
+{% endblock %}

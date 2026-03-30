@@ -12,50 +12,37 @@ const sentimentFilterEl = document.getElementById("sentimentFilter");
 const minRatingEl = document.getElementById("minRating");
 const statusEl = document.getElementById("status");
 const loadingEl = document.getElementById("loading");
-const themeToggleEl = document.getElementById("themeToggle");
 
 let latestSearch = [];
 let latestKeyword = "";
 let latestAnalysis = null;
 let currentTheme = "light";
 
-function applyTheme(theme) {
-  currentTheme = theme === "dark" ? "dark" : "light";
-  document.documentElement.setAttribute("data-theme", currentTheme);
-  if (themeToggleEl) {
-    themeToggleEl.textContent = currentTheme === "dark" ? "Light Mode" : "Dark Glass";
-  }
-}
-
-function initTheme() {
-  const saved = localStorage.getItem("theme");
-  applyTheme(saved === "dark" ? "dark" : "light");
-}
-
-function toggleTheme() {
-  const next = currentTheme === "dark" ? "light" : "dark";
-  applyTheme(next);
-  localStorage.setItem("theme", next);
-}
+// Session State Fetching
+const urlParams = new URLSearchParams(window.location.search);
+const currentSid = urlParams.get("sid");
 
 function selectedFile(inputEl) {
-  return inputEl.files && inputEl.files.length > 0 ? inputEl.files[0] : null;
+  return inputEl && inputEl.files && inputEl.files.length > 0 ? inputEl.files[0] : null;
 }
 
 function setStatus(message, type = "info") {
+  if (!statusEl) return;
   statusEl.textContent = message;
-  statusEl.classList.remove("ok", "error", "muted");
-  if (type === "ok") statusEl.classList.add("ok");
-  else if (type === "error") statusEl.classList.add("error");
-  else statusEl.classList.add("muted");
+  statusEl.classList.remove("ok", "error", "muted", "text-cyan-400", "text-error", "text-zinc-500");
+  if (type === "ok") statusEl.classList.add("text-cyan-400");
+  else if (type === "error") statusEl.classList.add("text-error");
+  else statusEl.classList.add("text-zinc-500");
 }
 
 function setLoading(flag) {
-  loadingEl.classList.toggle("hidden", !flag);
+  if(loadingEl) loadingEl.classList.toggle("hidden", !flag);
 }
 
 function escapeHtml(value) {
+  if(!value) return "";
   return value
+    .toString()
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
@@ -68,24 +55,7 @@ function highlightText(text, keyword, caseSensitive) {
   const flags = caseSensitive ? "g" : "gi";
   const safeKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const regex = new RegExp(safeKeyword, flags);
-  return escapeHtml(text).replace(regex, (match) => `<mark>${match}</mark>`);
-}
-
-async function apiPost(url, formData) {
-  const res = await fetch(url, { method: "POST", body: formData });
-  const contentType = res.headers.get("content-type") || "";
-  let body = null;
-  if (contentType.includes("application/json")) {
-    body = await res.json();
-  } else {
-    const text = await res.text();
-    body = { ok: false, error: { message: text || "Request failed" } };
-  }
-  if (!res.ok || !body.ok) {
-    const message = body?.error?.message || "Request failed";
-    throw new Error(message);
-  }
-  return body.data;
+  return escapeHtml(text).replace(regex, (match) => `<mark class="bg-primary/20 text-primary">${match}</mark>`);
 }
 
 async function loadAnalysis() {
@@ -100,14 +70,15 @@ async function loadAnalysis() {
 
   try {
     setLoading(true);
-    setStatus(`Analyzing ${file.name}...`);
-    const data = await apiPost("/api/analyze", formData);
-    latestAnalysis = data;
-    renderDashboard(data);
-    setStatus(`Analysis complete for ${data.file.name}.`, "ok");
+    setStatus(`Analyzing ${file.name} to memory...`);
+    const res = await fetch("/api/analyze", { method: "POST", body: formData });
+    let body = await res.json();
+    if (!res.ok) throw new Error(body.error?.message || "Analysis failed");
+    
+    // Redirect to Dashboard with active Session ID
+    window.location.href = `/dashboard?sid=${body.data.session_id}`;
   } catch (err) {
     setStatus(err.message, "error");
-  } finally {
     setLoading(false);
   }
 }
@@ -126,17 +97,15 @@ async function compareFiles() {
 
   try {
     setLoading(true);
-    setStatus(`Comparing ${file.name} vs ${compareFile.name}...`);
-    const data = await apiPost("/api/compare", formData);
-    const d = data.delta;
-    const compareEl = document.getElementById("compareSummary");
-    compareEl.innerHTML = `
-      <div>Total delta: <b>${d.total_feedback_delta}</b></div>
-      <div>Positive % delta: <b>${d.positive_pct_delta}</b></div>
-      <div>Negative % delta: <b>${d.negative_pct_delta}</b></div>
-      <div>Avg rating delta: <b>${d.avg_rating_delta ?? "N/A"}</b></div>
-    `;
-    setStatus("Comparison complete.", "ok");
+    setStatus("Running differential analysis...");
+    const res = await fetch("/api/compare", { method: "POST", body: formData });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error?.message || "Comparison failed");
+    const delta = body.data.delta;
+    setStatus(
+      `Differential complete — Δ Volume: ${delta.total_feedback_delta > 0 ? '+' : ''}${delta.total_feedback_delta} | Δ Positive: ${delta.positive_pct_delta > 0 ? '+' : ''}${delta.positive_pct_delta}% | Δ Rating: ${delta.avg_rating_delta ?? 'N/A'}`,
+      "ok"
+    );
   } catch (err) {
     setStatus(err.message, "error");
   } finally {
@@ -145,50 +114,44 @@ async function compareFiles() {
 }
 
 async function runSearch() {
-  const keyword = keywordEl.value.trim();
-  if (!keyword) {
-    setStatus("Enter a keyword to search.", "error");
+  if (!currentSid) {
+    setStatus("No active session! Start from Home.", "error");
     return;
   }
-
-  const file = selectedFile(fileEl);
-  if (!file) {
-    setStatus("Please upload a .txt or .csv file first.", "error");
-    return;
-  }
-
+  
+  const keyword = keywordEl ? keywordEl.value.trim() : "";
   const formData = new FormData();
-  formData.append("feedback_file", file);
+  formData.append("sid", currentSid);
   formData.append("keyword", keyword);
-  formData.append("case_sensitive", String(caseSensitiveEl.checked));
-  formData.append("match_mode", matchModeEl.value);
-  formData.append("sentiment_filter", sentimentFilterEl.value);
-  if (minRatingEl.value) {
-    formData.append("min_rating", minRatingEl.value);
-  }
+  if(caseSensitiveEl) formData.append("case_sensitive", String(caseSensitiveEl.checked));
+  if(matchModeEl) formData.append("match_mode", matchModeEl.value);
+  if(sentimentFilterEl) formData.append("sentiment_filter", sentimentFilterEl.value);
+  if(minRatingEl && minRatingEl.value) formData.append("min_rating", minRatingEl.value);
 
   try {
     setLoading(true);
-    setStatus("Searching feedback...");
-    const data = await apiPost("/api/search", formData);
-    const meta = document.getElementById("searchMeta");
-    const list = document.getElementById("searchResults");
+    setStatus("Searching raw dataset...");
+    const res = await fetch("/api/search", { method: "POST", body: formData });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error?.message || "Search failed");
+    
+    const data = body.data;
     latestSearch = data.matches || [];
     latestKeyword = data.keyword || "";
-
-    meta.textContent = `Found ${data.count} result(s) for "${data.keyword}"`;
-    list.innerHTML = "";
-    latestSearch.forEach((text) => {
-      const li = document.createElement("li");
-      li.innerHTML = highlightText(text, data.keyword, data.options.case_sensitive);
-      list.appendChild(li);
-    });
-    if (latestSearch.length === 0) {
-      const li = document.createElement("li");
-      li.textContent = "No matching feedback found.";
-      list.appendChild(li);
+    const meta = document.getElementById("searchMeta");
+    const list = document.getElementById("searchResults");
+    
+    if(meta) meta.textContent = `Found ${data.count} result(s) for "${data.keyword}"`;
+    if(list) {
+        list.innerHTML = "";
+        latestSearch.forEach((text) => {
+          const li = document.createElement("li");
+          li.className = "text-sm p-3 bg-surface-container-highest/20 border-l-2 border-cyan-400 rounded-sm";
+          li.innerHTML = highlightText(text, data.keyword, data.options.case_sensitive);
+          list.appendChild(li);
+        });
+        if (latestSearch.length === 0) list.innerHTML = '<li class="text-zinc-500 p-4 text-center font-headline uppercase tracking-widest text-[10px]">No matching feedback found in the DATAMATRIX.</li>';
     }
-
     setStatus(`Search complete: ${data.count} match(es).`, "ok");
   } catch (err) {
     setStatus(err.message, "error");
@@ -197,184 +160,260 @@ async function runSearch() {
   }
 }
 
-function exportSearch() {
-  if (!latestSearch.length) {
-    setStatus("No search results to export.", "error");
-    return;
-  }
-  const lines = [`Keyword: ${latestKeyword}`, `Matches: ${latestSearch.length}`, ""];
-  latestSearch.forEach((item, idx) => lines.push(`${idx + 1}. ${item}`));
-  const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "search_results.txt";
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  setStatus("Search results exported.", "ok");
-}
-
-function exportExecutiveSummary() {
-  if (!latestAnalysis) {
-    setStatus("Run analysis first to export PDF summary.", "error");
-    return;
-  }
-
-  fetch("/api/export-summary-pdf", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ analysis: latestAnalysis }),
-  })
-    .then(async (res) => {
-      if (!res.ok) {
-        let message = "PDF export failed";
-        const contentType = res.headers.get("content-type") || "";
-        if (contentType.includes("application/json")) {
-          const body = await res.json();
-          message = body.error?.message || message;
-        }
-        throw new Error(message);
-      }
-      return res.blob();
-    })
-    .then((blob) => {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "executive_summary.pdf";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      setStatus("Executive summary PDF exported.", "ok");
-    })
-    .catch((err) => {
-      setStatus(err.message || "PDF export failed", "error");
-    });
-}
-
+// ---------------------------------------------------------
+// DOM Rendering (Safe null checks for Multi-Page operation)
+// ---------------------------------------------------------
 function renderDashboard(data) {
-  renderStats(data.stats, data.average_rating, data.file);
-  renderSentiment(data.sentiment_percent, data.sentiment_series);
-  renderTopWords(data.top_words, "topWords");
-  renderTopWords(data.negative_top_words, "negativeWords");
+  renderStats(data.stats);
+  renderSentiment(data.sentiment_percent);
   renderCategories(data.categories);
-  renderRatings(data.rating_distribution);
+  renderRatings(data.ratings);
   renderSuggestions(data.suggestions);
-  renderPriorityInsights(data.priority_insights);
+  renderPriorityInsights(data.priority);
+  renderTopWords(data.top_words);
+  renderNegativeWords(data.negative_words);
+  setStatus("Analysis Rendered Successfully", "ok");
 }
 
-function renderStats(stats, avgRating, fileMeta) {
-  const wrap = document.getElementById("stats");
-  const cards = [
-    ["File", fileMeta.name],
-    ["Rows", stats.total],
-    ["Avg Length", stats.avg_length],
-    ["Avg Rating", avgRating ?? "N/A"]
-  ];
-  wrap.innerHTML = cards
-    .map(([label, value]) => `<div class="stat"><small class="muted">${label}</small><b>${escapeHtml(String(value))}</b></div>`)
-    .join("");
+function renderStats(stats) {
+  const el = document.getElementById("stats");
+  if (!el || !stats) return;
+  el.innerHTML = `
+    <div class="flex justify-between items-end">
+        <div class="text-[10px] uppercase font-headline text-zinc-500">Volumetric Sum</div>
+        <div class="text-3xl font-bold font-headline text-primary">${stats.total}</div>
+    </div>
+    <div class="flex justify-between items-end">
+        <div class="text-[10px] uppercase font-headline text-zinc-500">Signal Ratio</div>
+        <div class="text-xl font-bold font-headline text-zinc-300">${stats.processed}/${stats.failed}</div>
+    </div>
+  `;
 }
 
-function renderSentiment(sentimentPercent) {
-  const container = document.getElementById("sentimentBars");
-  container.innerHTML = "";
-  ["Positive", "Negative", "Neutral"].forEach((key) => {
-    const pct = sentimentPercent[key] || 0;
-    container.insertAdjacentHTML(
-      "beforeend",
-      `<div class="bar-row">
-        <div class="bar-meta"><span>${key}</span><strong>${pct}%</strong></div>
-        <div class="bar"><div class="fill" style="width:${pct}%"></div></div>
-      </div>`
-    );
-  });
+function renderSentiment(dist) {
+  const el = document.getElementById("sentimentBars");
+  if (!el || !dist) return;
+  el.className = "flex w-full h-4 rounded-full overflow-hidden";
+  el.innerHTML = `
+    <div style="width: ${dist.Positive || 0}%" class="bg-cyan-400"></div>
+    <div style="width: ${dist.Neutral || 0}%" class="bg-secondary"></div>
+    <div style="width: ${dist.Negative || 0}%" class="bg-error"></div>
+  `;
 }
 
-function renderTopWords(words, elementId) {
-  const list = document.getElementById(elementId);
+function renderTopWords(words) {
+  const list = document.getElementById("topWords");
+  if (!list || !words) return;
   list.innerHTML = "";
-  (words || []).forEach((entry) => {
+  words.forEach(({ word, count }) => {
     const li = document.createElement("li");
-    li.textContent = `${entry.word}: ${entry.count}`;
+    li.className = "flex justify-between items-center text-sm p-2 bg-surface-container-highest/20 hover:bg-surface-container-highest/60 transition-colors rounded-sm";
+    li.innerHTML = `<span class="text-on-surface-variant font-medium">${escapeHtml(word)}</span><span class="text-cyan-400 font-headline text-xs">${count}</span>`;
     list.appendChild(li);
   });
-  if (!list.children.length) {
-    const li = document.createElement("li");
-    li.textContent = "No data";
-    list.appendChild(li);
-  }
 }
 
-function renderCategories(categories) {
-  const list = document.getElementById("categories");
-  const entries = Object.entries(categories || {});
-  if (!entries.length) {
-    list.innerHTML = "<li>No data</li>";
-    return;
+function renderNegativeWords(words) {
+  const list = document.getElementById("negativeWords");
+  if (!list || !words) return;
+  list.innerHTML = "";
+  words.forEach(({ word, count }) => {
+    const li = document.createElement("li");
+    li.className = "flex justify-between items-center text-sm p-2 bg-error-container/20 border-l border-error hover:bg-error-container/50 transition-colors rounded-sm";
+    li.innerHTML = `<span class="text-error font-medium">${escapeHtml(word)}</span><span class="text-error/70 font-headline text-xs">${count}</span>`;
+    list.appendChild(li);
+  });
+}
+
+function renderCategories(distribution) {
+  const el = document.getElementById("categories");
+  if (!el || !distribution) return;
+  el.innerHTML = "";
+  const max = Math.max(...Object.values(distribution), 1);
+  for (const [name, count] of Object.entries(distribution)) {
+    const li = document.createElement("li");
+    li.className = "flex items-center gap-4";
+    li.innerHTML = `
+    <div class="flex-1">
+        <div class="flex justify-between text-[10px] uppercase font-headline mb-1">
+            <span>${escapeHtml(name)}</span>
+            <span class="text-cyan-400">${count}</span>
+        </div>
+        <div class="h-1 bg-surface-container-lowest rounded-full overflow-hidden">
+            <div class="h-full bg-cyan-400" style="width:${(count / max) * 100}%"></div>
+        </div>
+    </div>`;
+    el.appendChild(li);
   }
-  const max = Math.max(...entries.map(([, count]) => count), 1);
-  list.innerHTML = entries
-    .map(
-      ([name, count]) => `<li class="meter-row">
-        <span>${name} (${count})</span>
-        <div class="meter-track"><div class="meter-fill" style="width:${(count / max) * 100}%"></div></div>
-      </li>`
-    )
-    .join("");
 }
 
 function renderRatings(distribution) {
   const el = document.getElementById("ratings");
-  if (!distribution) {
-    el.innerHTML = `<p class="muted">Upload CSV file to view rating distribution.</p>`;
-    return;
-  }
+  if (!el || !distribution) return;
   const max = Math.max(...Object.values(distribution), 1);
-  el.innerHTML = [5, 4, 3, 2, 1]
-    .map(
-      (star) => `<div class="meter-row">
-        <span>${star} star (${distribution[star]})</span>
-        <div class="meter-track"><div class="meter-fill" style="width:${(distribution[star] / max) * 100}%"></div></div>
-      </div>`
-    )
-    .join("");
+  el.innerHTML = [5, 4, 3, 2, 1].map(star => `
+      <div class="flex items-center gap-4">
+        <div class="w-10 h-10 rounded-sm bg-surface-container-highest flex items-center justify-center">
+            <span class="material-symbols-outlined text-secondary">star</span>
+        </div>
+        <div class="flex-1">
+            <div class="flex justify-between text-[10px] uppercase font-headline mb-1">
+                <span>${star} Star</span>
+                <span class="text-secondary">${distribution[star] || 0}</span>
+            </div>
+            <div class="h-1 bg-surface-container-lowest rounded-full overflow-hidden">
+                <div class="h-full bg-secondary" style="width:${((distribution[star] || 0) / max) * 100}%"></div>
+            </div>
+        </div>
+      </div>`).join("");
 }
 
 function renderSuggestions(items) {
   const list = document.getElementById("suggestions");
+  if (!list || !items) return;
   list.innerHTML = "";
-  (items || []).forEach((item) => {
+  items.forEach((item) => {
     const li = document.createElement("li");
-    li.textContent = item;
+    li.className = "flex gap-3 items-start p-3 bg-surface-container-lowest border-l-2 border-cyan-400 rounded-sm";
+    li.innerHTML = `
+        <span class="material-symbols-outlined text-xs text-cyan-400 mt-1">auto_awesome</span>
+        <span class="text-xs text-on-surface-variant">${escapeHtml(item)}</span>
+    `;
     list.appendChild(li);
   });
 }
 
 function renderPriorityInsights(items) {
   const list = document.getElementById("priorityInsights");
+  if (!list || !items) return;
   list.innerHTML = "";
-  (items || []).forEach((item) => {
+  items.forEach((item) => {
     const li = document.createElement("li");
-    li.innerHTML = `<strong>${escapeHtml(item.title)}</strong><br><small class="muted">${escapeHtml(item.evidence)}</small>`;
+    li.className = "p-3 bg-error-container/10 border-l-2 border-error rounded-sm";
+    li.innerHTML = `
+        <div class="text-[10px] font-bold uppercase mb-1 text-error">${escapeHtml(item.title)}</div>
+        <div class="text-xs text-zinc-400">${escapeHtml(item.evidence)}</div>
+    `;
     list.appendChild(li);
   });
-  if (!list.children.length) {
-    const li = document.createElement("li");
-    li.textContent = "No priority insights yet.";
-    list.appendChild(li);
+}
+
+async function exportExecutiveSummary() {
+    if (!currentSid) return setStatus("No active session to export", "error");
+    window.location.href = `/api/export-summary-pdf?sid=${currentSid}`;
+}
+
+async function exportSearch() {
+  if (!currentSid) return setStatus("No active session! Start from Home.", "error");
+  if (latestSearch.length === 0) return setStatus("Search for data first to export.", "error");
+  
+  try {
+    const csvContent = "Feedback Text\n" + latestSearch.map(s => `"${escapeHtml(s).replaceAll('"', '""')}"`).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `search_export_${latestKeyword || "all"}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  } catch (err) {
+    setStatus(err.message, "error");
   }
 }
 
-refreshBtn.addEventListener("click", loadAnalysis);
-compareBtn.addEventListener("click", compareFiles);
-searchBtn.addEventListener("click", runSearch);
-exportBtn.addEventListener("click", exportSearch);
-exportSummaryBtn.addEventListener("click", exportExecutiveSummary);
-if (themeToggleEl) {
-  themeToggleEl.addEventListener("click", toggleTheme);
-}
+// ---------------------------------------------------------
+// Navigation Hook
+// ---------------------------------------------------------
+const navHandlers = {
+    "navDashboard": () => window.location.href = currentSid ? `/dashboard?sid=${currentSid}` : "/dashboard",
+    "navAnalytics": () => window.location.href = currentSid ? `/analytics?sid=${currentSid}` : "/analytics",
+    "navReports": exportExecutiveSummary,
+    "sideOverview": () => window.location.href = currentSid ? `/dashboard?sid=${currentSid}` : "/dashboard",
+    "sideSentiment": () => window.location.href = currentSid ? `/analytics?sid=${currentSid}` : "/analytics",
+    "sideRawData": () => window.location.href = currentSid ? `/raw_data?sid=${currentSid}` : "/raw_data",
+    "sideExport": exportExecutiveSummary,
+    "sideUploadBtn": () => window.location.href = "/"
+};
+
+Object.entries(navHandlers).forEach(([id, handler]) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("click", (e) => {
+        e.preventDefault();
+        handler();
+    });
+});
+
+if (refreshBtn) refreshBtn.addEventListener("click", loadAnalysis);
+if (compareBtn) compareBtn.addEventListener("click", compareFiles);
+if (searchBtn) searchBtn.addEventListener("click", runSearch);
+if (exportSummaryBtn) exportSummaryBtn.addEventListener("click", exportExecutiveSummary);
+if (exportBtn) exportBtn.addEventListener("click", exportSearch);
+
+// Enter key triggers search
+if (keywordEl) keywordEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") runSearch();
+});
+
 initTheme();
+
+// ---------------------------------------------------------
+// Auto-Load Active Session on any Page Load
+// ---------------------------------------------------------
+document.addEventListener("DOMContentLoaded", async () => {
+    // 1. Resolve Active Nav Glow
+    const path = window.location.pathname;
+    const activeMap = {
+        "/dashboard": "sideOverview",
+        "/analytics": "sideSentiment",
+        "/raw_data":  "sideRawData"
+    };
+    if (activeMap[path]) {
+        const el = document.getElementById(activeMap[path]);
+        if (el) {
+            el.classList.remove("text-zinc-500", "hover:text-zinc-300", "hover:bg-zinc-800/50");
+            el.classList.add("text-cyan-400", "bg-cyan-500/10", "border-l-2", "border-cyan-400", "shadow-[0_0_15px_rgba(0,219,231,0.3)]");
+        }
+    }
+
+    const subPages = ["/dashboard", "/analytics", "/raw_data"];
+    const zeroStateEl = document.getElementById("zero-state");
+    const dataSectionsEl = document.getElementById("data-sections");
+
+    // 2. Handle no-session zero-state
+    if (subPages.includes(path) && !currentSid) {
+        setStatus("NO ACTIVE UPLINK — Initialize a session from HQ.", "error");
+        if (zeroStateEl) zeroStateEl.classList.remove("hidden");
+        return;
+    }
+
+    // 3. Fetch Active Session and populate
+    if (currentSid) {
+        try {
+            setLoading(true);
+            const res = await fetch(`/api/data?sid=${currentSid}`);
+            const body = await res.json();
+            if (!res.ok) throw new Error(body.error?.message || "Invalid Session");
+            latestAnalysis = body.data;
+            if (dataSectionsEl) dataSectionsEl.classList.remove("hidden");
+            if (zeroStateEl) zeroStateEl.classList.add("hidden");
+            renderDashboard(latestAnalysis);
+            // Update avg rating display if exists
+            const avgEl = document.getElementById("avgRatingCurrent");
+            if (avgEl && latestAnalysis.average_rating != null) avgEl.textContent = latestAnalysis.average_rating;
+        } catch (e) {
+            setStatus("Session error: " + e.message, "error");
+            if (zeroStateEl) zeroStateEl.classList.remove("hidden");
+            console.error(e);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    // 4. Raw Data page: show prompt if no search has been run
+    if (path === "/raw_data" && currentSid) {
+        const list = document.getElementById("searchResults");
+        if (list && list.children.length === 0) {
+            list.innerHTML = '<li class="text-zinc-600 p-8 text-center font-headline uppercase tracking-[0.2em] text-[10px]">Enter a keyword to scan the DATAMATRIX ↑</li>';
+        }
+    }
+});

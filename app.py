@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import time
+import uuid
 from collections import defaultdict, deque
 from threading import Lock
 from typing import Any
@@ -33,6 +34,9 @@ def _to_int(value: str | None, default: int, minimum: int = 1) -> int:
         return default
     return parsed if parsed >= minimum else default
 
+
+# Global in-memory storage for handling files across hard page loads
+SERVER_SESSIONS: dict[str, dict[str, Any]] = {}
 
 def create_app() -> Flask:
     app = Flask(__name__)
@@ -129,10 +133,10 @@ def create_app() -> Flask:
     def add_security_headers(response: Response):
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self'; "
-            "style-src 'self' https://fonts.googleapis.com; "
+            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
             "font-src 'self' https://fonts.gstatic.com; "
-            "img-src 'self' data:; "
+            "img-src 'self' data: https://lh3.googleusercontent.com https://lh3.googleusercontent.com/aida-public/; "
             "frame-ancestors 'none';"
         )
         response.headers["X-Frame-Options"] = "DENY"
@@ -142,19 +146,48 @@ def create_app() -> Flask:
         return response
 
     @app.get("/")
-    def home():
-        return render_template("index.html")
+    def page_home():
+        return render_template("home.html")
+
+    @app.get("/dashboard")
+    def page_dashboard():
+        return render_template("dashboard.html")
+
+    @app.get("/analytics")
+    def page_analytics():
+        return render_template("analytics.html")
+
+    @app.get("/raw_data")
+    def page_raw_data():
+        return render_template("raw_data.html")
+
+    @app.get("/api/data")
+    def get_data():
+        sid = request.args.get("sid")
+        if not sid or sid not in SERVER_SESSIONS:
+            return jsonify(ApiErrorResponse(error={"code": "MISSING_SESSION", "message": "Session expired."}).model_dump()), 400
+        return jsonify(ApiSuccessResponse(data=SERVER_SESSIONS[sid]["analysis"]).model_dump())
 
     @app.post("/api/analyze")
     def analyze_upload():
         uploaded_file = request.files.get("feedback_file")
         parsed = parse_uploaded_feedback(uploaded_file)
         data = build_analysis_payload(parsed)
-        payload = ApiSuccessResponse(data=data)
+        
+        sid = str(uuid.uuid4())
+        SERVER_SESSIONS[sid] = {
+            "parsed": parsed,
+            "analysis": data
+        }
+        payload = ApiSuccessResponse(data={"session_id": sid})
         return jsonify(payload.model_dump())
 
     @app.post("/api/search")
     def search_upload():
+        sid = request.form.get("sid")
+        if not sid or sid not in SERVER_SESSIONS:
+            return jsonify(ApiErrorResponse(error={"code": "MISSING_SESSION", "message": "Session expired."}).model_dump()), 400
+            
         keyword = (request.form.get("keyword") or "").strip()
         case_sensitive = _to_bool(request.form.get("case_sensitive"), default=False)
         match_mode = (request.form.get("match_mode") or "partial").strip().lower()
@@ -168,8 +201,7 @@ def create_app() -> Flask:
         else:
             min_rating = None
 
-        uploaded_file = request.files.get("feedback_file")
-        parsed = parse_uploaded_feedback(uploaded_file)
+        parsed = SERVER_SESSIONS[sid]["parsed"]
         matches = search_feedback(
             parsed.feedback_list,
             keyword,
@@ -235,10 +267,13 @@ def create_app() -> Flask:
         payload = ApiSuccessResponse(data={"status": "ok"})
         return jsonify(payload.model_dump())
 
-    @app.post("/api/export-summary-pdf")
+    @app.get("/api/export-summary-pdf")
     def export_summary_pdf():
-        body = request.get_json(silent=True) or {}
-        analysis = body.get("analysis")
+        sid = request.args.get("sid")
+        if not sid or sid not in SERVER_SESSIONS:
+            raise AnalysisError("Session expired.", code="MISSING_SESSION")
+            
+        analysis = SERVER_SESSIONS[sid]["analysis"]
         if not isinstance(analysis, dict):
             raise AnalysisError("analysis payload is required for PDF export")
 

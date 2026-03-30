@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Dashboard Intel{% endblock %}
+
+{% block status_prompt %}{% endblock %}
+
+{% block content %}
+<!-- Zero-State Panel (shown when no session) -->
+<div id="zero-state" class="hidden flex flex-col items-center justify-center gap-6 py-32 text-center">
+    <span class="material-symbols-outlined text-6xl text-zinc-700 animate-pulse">satellite_alt</span>
+    <div class="text-zinc-400 font-headline uppercase tracking-[0.2em] text-sm">No Data Uplinked to the Matrix</div>
+    <div class="text-zinc-600 text-xs tracking-widest">You must run an analysis to populate this node.</div>
+    <a href="/" class="mt-2 px-8 py-2 bg-cyan-500/10 border border-cyan-400/30 text-cyan-400 font-headline text-[10px] uppercase tracking-[0.2em] rounded-sm hover:bg-cyan-500/20 transition-all shadow-[0_0_10px_rgba(0,219,231,0.2)]">RETURN TO HQ</a>
+</div>
+
+<!-- VIEW: DASHBOARD (hidden until data loads) -->
+<div id="data-sections" class="hidden">
+<section id="view-dashboard" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6 mb-12">
+    <!-- Overview Stats -->
+    <div class="lg:col-span-4 glass-panel rounded-lg p-6 flex flex-col justify-between">
+        <div>
+            <h3 class="text-[10px] font-headline uppercase tracking-[0.2em] text-cyan-500 mb-6 drop-shadow-[0_0_5px_rgba(0,219,231,0.5)]">SYNAPTIC NODE OVERVIEW</h3>
+            <div id="stats" class="space-y-4">
+                <div class="h-8 bg-surface-container-highest/30 rounded animate-pulse"></div>
+                <div class="h-8 bg-surface-container-highest/30 rounded animate-pulse w-3/4"></div>
+            </div>
+        </div>
+        <div class="mt-8 pt-6 border-t border-white/5">
+            <div class="flex justify-between items-center text-[10px] uppercase font-headline">
+                <span class="text-zinc-500 tracking-widest">PROCESSING DELTA</span>
+                <span class="text-cyan-400">+14.2%</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sentiment Chart -->
+    <div class="lg:col-span-8 glass-panel rounded-lg p-6 flex flex-col justify-between">
+        <div class="flex justify-between items-start mb-8">
+            <h3 class="text-[10px] font-headline uppercase tracking-[0.2em] text-secondary mb-6 drop-shadow-[0_0_5px_rgba(235,178,255,0.4)]">BIOMETRIC SENTIMENT RESONANCE</h3>
+            <div class="flex gap-2">
+                <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+                <span class="w-2 h-2 rounded-full bg-secondary"></span>
+                <span class="w-2 h-2 rounded-full bg-error"></span>
+            </div>
+        </div>
+        <div id="sentimentBars" class="flex w-full h-4 rounded-full overflow-hidden bg-surface-container-highest/50 relative mb-6">
+            <div class="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400/10 to-transparent w-[200%] animate-[translateX_2s_infinite]"></div>
+        </div>
+    </div>
+</section>
+
+<section id="view-dashboard-bottom" class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-12">
+    <!-- Ratings Card -->
+    <div class="lg:col-span-12 glass-panel rounded-lg p-6 flex flex-col justify-between">
+        <h3 class="text-[10px] font-headline uppercase tracking-[0.2em] text-primary mb-6 drop-shadow-[0_0_5px_rgba(225,253,255,0.4)]">QUANTUM RATING DISTRIBUTION MATRIX</h3>
+        <div id="ratings" class="grid grid-cols-5 gap-4">
+            <div class="h-10 rounded-sm bg-surface-container-highest/40 animate-pulse col-span-5"></div>
+        </div>
+    </div>
+
+    <!-- Comparison Summary -->
+    <div class="lg:col-span-12 glass-panel rounded-lg p-6 bg-gradient-to-r from-surface-container/80 to-surface-container-high/40">
+        <div class="flex flex-col md:flex-row justify-between items-center gap-8">
+            <div class="flex items-center gap-8">
+                <div class="text-center">
+                    <div class="text-[9px] text-cyan-500/80 font-headline uppercase tracking-[0.25em] mb-1">ALPHA SEQUENCE</div>
+                    <div id="avgRatingCurrent" class="text-3xl font-bold text-primary">-</div>
+                    <div class="text-[10px] text-cyan-400 font-headline">Avg Rating</div>
+                </div>
+                <div class="h-12 w-[1px] bg-white/10"></div>
+                <div class="text-center">
+                    <div class="text-[9px] text-zinc-500 font-headline uppercase tracking-[0.25em] mb-1">BETA SEQUENCE</div>
+                    <div class="text-3xl font-bold text-zinc-600">-</div>
+                    <div class="text-[10px] text-zinc-500 font-headline">Avg Rating</div>
+                </div>
+            </div>
+            <div class="flex-1 max-w-xl">
+                <div class="text-[9px] font-headline uppercase tracking-[0.25em] text-zinc-500 mb-2 border-b border-white/5 pb-2">TEMPORAL DIFFERENTIAL ANALYSIS</div>
+                <div id="compareSummary" class="text-sm italic text-on-surface-variant font-light text-center w-full">Run RUN DIFFERENTIAL on home to compare datasets.</div>
+            </div>
+        </div>
+    </div>
+</section>
+</div>
+{% endblock %}

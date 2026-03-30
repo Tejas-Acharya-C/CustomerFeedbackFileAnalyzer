@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>AEGIS_ANALYTICA | {% block title %}Intelligence Core{% endblock %}</title>
+
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Inter:wght@300;400;500;600;700&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+
+        .glass-panel {
+            background: rgba(32, 31, 33, 0.6);
+            backdrop-filter: blur(24px);
+            border: 1px solid rgba(58, 73, 75, 0.15);
+        }
+
+        .neon-glow-cyan {
+            box-shadow: 0 0 12px rgba(0, 219, 231, 0.3);
+        }
+
+        .neon-glow-purple {
+            box-shadow: 0 0 12px rgba(182, 0, 248, 0.3);
+        }
+
+        body {
+            background-color: #131315;
+            color: #e5e1e4;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .font-headline {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+
+        @keyframes hexGlow {
+
+            0%,
+            100% {
+                opacity: 0.4;
+                filter: blur(1.5px);
+            }
+
+            50% {
+                opacity: 0.35;
+                filter: blur(3px);
+            }
+        }
+
+        .animate-hex {
+            animation: hexGlow 7s ease-in-out infinite;
+        }
+    </style>
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "outline-variant": "#3a494b",
+                        "on-tertiary-container": "#605f64",
+                        "outline": "#849495",
+                        "primary-fixed-dim": "#00dbe7",
+                        "tertiary": "#faf6fc",
+                        "inverse-on-surface": "#313032",
+                        "surface-variant": "#353437",
+                        "surface-tint": "#00dbe7",
+                        "surface-dim": "#131315",
+                        "primary-container": "#00f2ff",
+                        "on-surface-variant": "#b9cacb",
+                        "on-tertiary-fixed-variant": "#47464b",
+                        "tertiary-container": "#dddae0",
+                        "error-container": "#93000a",
+                        "on-error": "#690005",
+                        "surface-container-low": "#1c1b1d",
+                        "secondary": "#ebb2ff",
+                        "surface-container": "#201f21",
+                        "on-tertiary": "#303034",
+                        "on-background": "#e5e1e4",
+                        "on-primary-fixed": "#002022",
+                        "secondary-container": "#b600f8",
+                        "on-primary-container": "#006a71",
+                        "on-secondary": "#520072",
+                        "on-secondary-container": "#fff6fc",
+                        "primary-fixed": "#74f5ff",
+                        "tertiary-fixed-dim": "#c8c5cb",
+                        "surface-container-highest": "#353437",
+                        "on-secondary-fixed-variant": "#74009f",
+                        "inverse-primary": "#00696f",
+                        "secondary-fixed-dim": "#ebb2ff",
+                        "on-error-container": "#ffdad6",
+                        "on-primary": "#00363a",
+                        "surface-container-high": "#2a2a2c",
+                        "background": "#131315",
+                        "tertiary-fixed": "#e4e1e7",
+                        "primary": "#e1fdff",
+                        "surface": "#131315",
+                        "on-primary-fixed-variant": "#004f54",
+                        "on-surface": "#e5e1e4",
+                        "on-secondary-fixed": "#320047",
+                        "on-tertiary-fixed": "#1b1b1f",
+                        "surface-bright": "#39393b",
+                        "error": "#ffb4ab",
+                        "secondary-fixed": "#f8d8ff",
+                        "inverse-surface": "#e5e1e4",
+                        "surface-container-lowest": "#0e0e10"
+                    },
+                    fontFamily: {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" },
+                },
+            },
+        }
+    </script>
+</head>
+
+<body class="bg-background text-on-background min-h-screen relative overflow-x-hidden font-headline">
+    <!-- Animated CSS Background with Particles -->
+    <div class="fixed inset-0 z-[-1] overflow-hidden pointer-events-none">
+        <div
+            class="absolute w-[600px] h-[600px] bg-cyan-500/5 rounded-full blur-[120px] animate-[pulse_8s_ease-in-out_infinite] top-[-10%] right-[-10%] opacity-40">
+        </div>
+        <div
+            class="absolute w-[800px] h-[800px] bg-secondary-container/5 rounded-full blur-[150px] animate-[pulse_12s_ease-in-out_infinite_alternate] bottom-[-20%] left-[-10%] opacity-30">
+        </div>
+        <div
+            class="absolute w-[400px] h-[400px] bg-primary-fixed/5 rounded-full blur-[100px] animate-[pulse_10s_ease-in-out_infinite] top-[40%] right-[30%] opacity-20">
+        </div>
+        <!-- Hexagonal Scanning Grid -->
+        <div class="absolute inset-0 pointer-events-none animate-hex"
+            style="background-image: url(&quot;data:image/svg+xml,%3Csvg width='56' height='98' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill-rule='nonzero' stroke='rgba(0, 219, 231, 0.15)' stroke-width='1.5'%3E%3Cpath d='M28 66L0 50v-32l28-16 28 16v32L28 66zm0-64L0 18v32l28 16 28-16V18L28 2z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E&quot;);">
+        </div>
+
+        <!-- Moving Particle Canvas -->
+        <canvas id="particleCanvas" class="absolute inset-0 pointer-events-none opacity-100"></canvas>
+    </div>
+    <!-- TopNavBar (Shared Component) -->
+    <header
+        class="fixed top-0 w-full z-50 bg-zinc-950/60 backdrop-blur-3xl border-b border-white/10 shadow-[0_24px_48px_rgba(0,0,0,0.5)] flex justify-between items-center px-8 h-16 font-space-grotesk tracking-tight">
+        <div
+            class="text-xl font-bold tracking-[0.2em] text-cyan-400 uppercase flex items-center gap-2 drop-shadow-[0_0_8px_rgba(0,219,231,0.4)]">
+            <span class="material-symbols-outlined text-3xl animate-[spin_4s_linear_infinite]">radar</span>
+            AEGIS ANALYTICA
+        </div>
+        <div class="hidden md:flex gap-8 items-center h-full">
+            <!-- Replaced repetitive links to maximize cinematic empty space -->
+        </div>
+        <div class="flex items-center gap-6">
+            <span class="material-symbols-outlined text-zinc-400 text-3xl">account_circle</span>
+        </div>
+    </header>
+    <!-- SideNavBar (Shared Component) -->
+    <aside
+        class="fixed left-0 top-16 h-[calc(100vh-64px)] w-64 bg-zinc-900/40 backdrop-blur-2xl border-r border-white/5 flex flex-col py-6 hidden lg:flex">
+        <div class="px-6 mb-8">
+            <div class="flex items-center gap-3">
+                <div class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse neon-glow-cyan"></div>
+                <div>
+                    <div
+                        class="text-cyan-400 font-bold font-headline tracking-[0.2em] text-[10px] uppercase drop-shadow-[0_0_5px_rgba(0,219,231,0.5)]">
+                        AEGIS MATRIX</div>
+                    <div class="text-zinc-500 text-[9px] uppercase tracking-widest">LIVE UPLINK</div>
+                </div>
+            </div>
+        </div>
+        <nav class="flex-1 space-y-1 px-4 mt-4">
+            <a id="sideOverview"
+                class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 hover:pl-6 hover:shadow-[0_0_15px_rgba(0,219,231,0.1)] transition-all duration-300 font-headline uppercase tracking-[0.2em] text-[10px] cursor-pointer">
+                <span class="material-symbols-outlined text-sm">dashboard</span> NODE TOPOLOGY
+            </a>
+            <a id="sideSentiment"
+                class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 hover:pl-6 hover:shadow-[0_0_15px_rgba(0,219,231,0.1)] transition-all duration-300 font-headline uppercase tracking-[0.2em] text-[10px] cursor-pointer">
+                <span class="material-symbols-outlined text-sm">psychology</span> NEURAL METRICS
+            </a>
+            <a id="sideRawData"
+                class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 hover:pl-6 hover:shadow-[0_0_15px_rgba(0,219,231,0.1)] transition-all duration-300 font-headline uppercase tracking-[0.2em] text-[10px] cursor-pointer">
+                <span class="material-symbols-outlined text-sm">database</span> DATAMATRIX
+            </a>
+            <a id="sideExport"
+                class="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 hover:pl-6 hover:shadow-[0_0_15px_rgba(0,219,231,0.1)] transition-all duration-300 font-headline uppercase tracking-[0.2em] text-[10px] cursor-pointer">
+                <span class="material-symbols-outlined text-sm">ios_share</span> EXTRACT PROTOCOL
+            </a>
+        </nav>
+        <div class="px-6 mb-4">
+            <a href="/"
+                class="block text-center w-full py-2 bg-gradient-to-r from-primary-fixed-dim to-primary text-on-primary-fixed font-headline text-[10px] uppercase tracking-[0.2em] rounded-sm font-bold shadow-[0_0_15px_rgba(0,219,231,0.4)] hover:scale-[1.02] active:scale-95 transition-all">
+                INITIALIZE UPLINK
+            </a>
+        </div>
+    </aside>
+    <!-- Main Content Canvas -->
+    <main class="lg:ml-64 pt-24 px-8 pb-12 min-h-screen">
+        <p id="status" class="text-cyan-400 text-sm mb-4 font-headline uppercase tracking-widest text-center">{% block
+            status_prompt %}{% endblock %}</p>
+        <div id="loading"
+            class="text-secondary text-sm mb-4 font-headline uppercase tracking-widest text-center hidden animate-pulse">
+            Processing Data Pipeline...</div>
+
+        {% block content %}{% endblock %}
+
+    </main>
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <script>
+        // Cinematic Moving Particle Engine
+        document.addEventListener("DOMContentLoaded", () => {
+            const canvas = document.getElementById("particleCanvas");
+            if (!canvas) return;
+            const ctx = canvas.getContext("2d", { alpha: true });
+            let w, h;
+
+            function resize() {
+                w = canvas.width = window.innerWidth;
+                h = canvas.height = window.innerHeight;
+            }
+            window.addEventListener("resize", resize);
+            resize();
+
+            const particles = [];
+            const numParticles = 75; // Intense density
+
+            for (let i = 0; i < numParticles; i++) {
+                particles.push({
+                    x: Math.random() * w,
+                    y: Math.random() * h,
+                    vx: (Math.random() - 0.5) * 0.8, // Drifting speed X
+                    vy: (Math.random() - 0.5) * 0.8, // Drifting speed Y
+                    radius: Math.random() * 1.5 + 0.5,
+                    opacity: Math.random() * 0.15 + 0.03, // Very faint, ghostly particles
+                    isPink: Math.random() > 0.8 // 20% pink accent particles
+                });
+            }
+
+            function frame() {
+                ctx.clearRect(0, 0, w, h);
+                particles.forEach(p => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+
+                    // Screen wrap
+                    if (p.x < 0) p.x = w;
+                    if (p.x > w) p.x = 0;
+                    if (p.y < 0) p.y = h;
+                    if (p.y > h) p.y = 0;
+
+                    // Draw glowing particle
+                    ctx.globalAlpha = p.opacity;
+                    ctx.fillStyle = p.isPink ? "#ebb2ff" : "#00dbe7";
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Core glow
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = p.isPink ? "#ebb2ff" : "#00dbe7";
+                });
+                requestAnimationFrame(frame);
+            }
+            frame();
+        });
+    </script>
+</body>
+
+</html>

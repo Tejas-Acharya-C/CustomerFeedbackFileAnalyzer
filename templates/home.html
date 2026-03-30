@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Start Analysis{% endblock %}
+
+{% block status_prompt %}Select a file and click Analyze.{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="mb-12 relative overflow-hidden rounded-xl bg-surface-container-lowest p-12 border border-white/5">
+    <div class="relative z-10 flex flex-col md:flex-row justify-between items-end gap-8">
+        <div class="max-w-2xl">
+            <h1 class="text-5xl lg:text-7xl font-headline font-bold tracking-tighter mb-4 text-primary leading-none uppercase drop-shadow-[0_0_15px_rgba(225,253,255,0.4)]">
+                Initialize. <br/> Decode. <br/> <span class="bg-gradient-to-r from-primary-fixed-dim to-secondary bg-clip-text text-transparent">Assimilate.</span>
+            </h1>
+            <p class="text-on-surface-variant text-lg font-light leading-relaxed mb-6 font-headline tracking-widest">
+                Engage neural-powered biometric sentiment extraction and massive-scale temporal lexical vectors.
+            </p>
+        </div>
+        <div class="hidden lg:block w-64 h-64 bg-gradient-to-br from-cyan-500/10 to-transparent rounded-full blur-3xl absolute -right-20 -top-20"></div>
+    </div>
+</section>
+
+<!-- Toolbar / Control Panel -->
+<section class="mb-12 glass-panel rounded-lg p-6 flex flex-col gap-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="space-y-2">
+            <label class="text-[10px] font-headline uppercase tracking-widest text-zinc-400">Primary Dataset</label>
+            <div class="relative group">
+                <input id="feedbackFile" class="w-full bg-surface-container-lowest border-0 rounded-sm text-sm px-4 py-3 focus:ring-0 cursor-pointer text-cyan-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-cyan-500/10 file:text-cyan-400 hover:file:bg-cyan-500/20" type="file" accept=".txt,.csv,text/plain,text/csv"/>
+            </div>
+        </div>
+        <div class="space-y-2">
+            <label class="text-[10px] font-headline uppercase tracking-widest text-zinc-400">Comparative Node</label>
+            <div class="relative group">
+                <input id="compareFile" class="w-full bg-surface-container-lowest border-0 rounded-sm text-sm px-4 py-3 focus:ring-0 cursor-pointer text-secondary file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-secondary/10 file:text-secondary hover:file:bg-secondary/20" type="file" accept=".txt,.csv,text/plain,text/csv"/>
+            </div>
+        </div>
+        <div class="flex items-end gap-2 lg:col-span-2">
+            <button class="flex-1 py-3 bg-gradient-to-r from-primary-fixed-dim to-primary text-on-primary-fixed font-headline text-xs uppercase tracking-[0.2em] rounded-sm font-bold neon-glow-cyan transition-transform active:scale-95 shadow-[0_0_15px_rgba(0,219,231,0.4)]" id="refreshBtn">ENGAGE HYPER-ANALYSIS</button>
+            <button class="flex-1 py-3 bg-surface-container-highest/40 backdrop-blur-md border border-white/10 text-primary font-headline text-xs uppercase tracking-[0.2em] rounded-sm font-bold transition-all hover:bg-surface-container-highest/60 hover:shadow-[0_0_15px_rgba(255,255,255,0.1)]" id="compareBtn">RUN DIFFERENTIAL</button>
+        </div>
+    </div>
+</section>
+{% endblock %}
