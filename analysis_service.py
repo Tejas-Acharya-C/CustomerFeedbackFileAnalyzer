@@ -286,6 +286,18 @@ def search_feedback(
         keyword_cmp = keyword
 
     matches = []
+    # Optimization: Pre-calculate sentiment if filtering
+    sentiment_map = {}
+    if sentiment_filter != "all":
+        # Group analyze instead of one-by-one to save overhead
+        full_sentiment = fa.analyze_sentiment(feedback_list)
+        for label, items in full_sentiment.items():
+            label_lower = label.lower()
+            for item in items:
+                # Note: this assumes feedback strings are unique identifiers which is
+                # usually true for short feedback or sufficient for this app.
+                sentiment_map[item] = label_lower
+
     for idx, feedback in enumerate(feedback_list):
         if min_rating is not None:
             if not csv_rows or idx >= len(csv_rows):
@@ -295,13 +307,15 @@ def search_feedback(
                 continue
 
         if sentiment_filter != "all":
-            if _sentiment_label(feedback).lower() != sentiment_filter:
+            label = sentiment_map.get(feedback)
+            if label != sentiment_filter:
                 continue
 
         source = feedback if case_sensitive else feedback.lower()
         if match_mode == "exact":
-            words = _safe_lower_words(feedback) if not case_sensitive else re.findall(r"\b\w+\b", feedback)
-            if keyword_cmp in words:
+            # Optimization: Use fixed regex for exact match
+            pattern = rf"\b{re.escape(keyword_cmp)}\b"
+            if re.search(pattern, source if case_sensitive else source):
                 matches.append(feedback)
         elif keyword_cmp in source:
             matches.append(feedback)

@@ -125,6 +125,22 @@ def create_app() -> Flask:
         payload = ApiErrorResponse(error={"code": "internal_error", "message": "Unexpected server error"})
         return jsonify(payload.model_dump()), 500
 
+    @app.after_request
+    def add_security_headers(response: Response):
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self'; "
+            "style-src 'self' https://fonts.googleapis.com; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "img-src 'self' data:; "
+            "frame-ancestors 'none';"
+        )
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
+
     @app.get("/")
     def home():
         return render_template("index.html")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import xml.sax.saxutils as saxutils
 from datetime import datetime
 from io import BytesIO
 from typing import Any
@@ -11,12 +12,11 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-
 def _safe_text(value: Any, default: str = "N/A") -> str:
     if value is None:
         return default
     text = str(value).strip()
-    return text if text else default
+    return saxutils.escape(text) if text else default
 
 
 def _draw_header_footer(canv, doc, brand_name: str, generated_at: str):

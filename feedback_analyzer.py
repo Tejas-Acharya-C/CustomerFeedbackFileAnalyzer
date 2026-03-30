@@ -1,3 +1,4 @@
+import re
 import csv
 
 POSITIVE_WORDS = [
@@ -62,11 +63,8 @@ def load_txt(filepath):
                 stripped = line.strip()
                 if stripped:
                     feedback_list.append(stripped)
-        print(f"\n  [OK] Loaded {len(feedback_list)} feedback entries from '{filepath}'")
-    except FileNotFoundError:
-        print(f"\n  [ERROR] File '{filepath}' not found!")
-    except Exception as e:
-        print(f"\n  [ERROR] Error reading file: {e}")
+    except Exception:
+        pass
     return feedback_list
 
 
@@ -90,11 +88,8 @@ def load_csv(filepath):
                     "feedback": feedback
                 }
                 csv_data.append(record)
-        print(f"\n  [OK] Loaded {len(csv_data)} feedback entries from '{filepath}'")
-    except FileNotFoundError:
-        print(f"\n  [ERROR] File '{filepath}' not found!")
-    except Exception as e:
-        print(f"\n  [ERROR] Error reading file: {e}")
+    except Exception:
+        pass
     return csv_data
 
 
@@ -107,10 +102,10 @@ def analyze_sentiment(feedback_list):
         neg_count = 0
 
         for word in POSITIVE_WORDS:
-            if word in lower:
+            if re.search(rf"\b{re.escape(word)}\b", lower):
                 pos_count += 1
         for word in NEGATIVE_WORDS:
-            if word in lower:
+            if re.search(rf"\b{re.escape(word)}\b", lower):
                 neg_count += 1
 
         if pos_count > neg_count:
@@ -162,19 +157,12 @@ def get_statistics(feedback_list):
         return {"total": 0, "avg_length": 0, "shortest": "", "longest": ""}
 
     total = len(feedback_list)
-    lengths = []
-    for fb in feedback_list:
-        lengths.append(len(fb))
+    lengths = [len(fb) for fb in feedback_list]
 
     avg_length = sum(lengths) / total
 
-    shortest = feedback_list[0]
-    longest = feedback_list[0]
-    for fb in feedback_list:
-        if len(fb) < len(shortest):
-            shortest = fb
-        if len(fb) > len(longest):
-            longest = fb
+    shortest = min(feedback_list, key=len)
+    longest = max(feedback_list, key=len)
 
     return {
         "total": total,
@@ -193,7 +181,7 @@ def detect_categories(feedback_list):
         lower = feedback.lower()
         for cat, keywords in CATEGORY_KEYWORDS.items():
             for kw in keywords:
-                if kw in lower:
+                if re.search(rf"\b{re.escape(kw)}\b", lower):
                     categorized[cat].append(feedback)
                     break
 
@@ -202,12 +190,10 @@ def detect_categories(feedback_list):
 
 def rating_distribution(csv_data):
     distribution = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
-
     for record in csv_data:
         rating = record.get("rating", 0)
         if rating in distribution:
             distribution[rating] += 1
-
     return distribution
 
 
@@ -255,7 +241,6 @@ def generate_report(feedback_list, csv_data=None):
     lines.append("\n" + "=" * 56)
     lines.append("            END OF REPORT")
     lines.append("=" * 56)
-
     return "\n".join(lines)
 
 
@@ -263,9 +248,8 @@ def export_report(report, filepath):
     try:
         with open(filepath, "w", encoding="utf-8") as file:
             file.write(report)
-        print(f"\n  [OK] Report exported successfully to '{filepath}'")
-    except Exception as e:
-        print(f"\n  [ERROR] Error exporting report: {e}")
+    except Exception:
+        pass
 
 
 def _percent(part, total):
