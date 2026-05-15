@@ -1,419 +1,861 @@
-const fileEl = document.getElementById("feedbackFile");
-const compareFileEl = document.getElementById("compareFile");
-const refreshBtn = document.getElementById("refreshBtn");
-const compareBtn = document.getElementById("compareBtn");
-const searchBtn = document.getElementById("searchBtn");
-const exportBtn = document.getElementById("exportBtn");
-const exportSummaryBtn = document.getElementById("exportSummaryBtn");
-const keywordEl = document.getElementById("keyword");
-const caseSensitiveEl = document.getElementById("caseSensitive");
-const matchModeEl = document.getElementById("matchMode");
-const sentimentFilterEl = document.getElementById("sentimentFilter");
-const minRatingEl = document.getElementById("minRating");
-const statusEl = document.getElementById("status");
-const loadingEl = document.getElementById("loading");
+/**
+ * Pulse — Feedback Analyzer
+ * Single JS file for all pages.
+ */
 
-let latestSearch = [];
-let latestKeyword = "";
-let latestAnalysis = null;
-let currentTheme = "light";
+// ─────────────────────────────────────────────────────────────────────────────
+// Utilities
+// ─────────────────────────────────────────────────────────────────────────────
 
-// Session State Fetching
-const urlParams = new URLSearchParams(window.location.search);
-const currentSid = urlParams.get("sid");
+function $(id) { return document.getElementById(id); }
 
-function selectedFile(inputEl) {
-  return inputEl && inputEl.files && inputEl.files.length > 0 ? inputEl.files[0] : null;
+function escapeHtml(v) {
+  if (!v) return "";
+  return String(v)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
 }
 
-function setStatus(message, type = "info") {
-  if (!statusEl) return;
-  statusEl.textContent = message;
-  statusEl.classList.remove("ok", "error", "muted", "text-cyan-400", "text-error", "text-zinc-500");
-  if (type === "ok") statusEl.classList.add("text-cyan-400");
-  else if (type === "error") statusEl.classList.add("text-error");
-  else statusEl.classList.add("text-zinc-500");
+function prefersReducedMotion() {
+  return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-function setLoading(flag) {
-  if(loadingEl) loadingEl.classList.toggle("hidden", !flag);
+function pluralize(value, singular, plural) {
+  return `${value} ${value === 1 ? singular : (plural || `${singular}s`)}`;
 }
 
-function escapeHtml(value) {
-  if(!value) return "";
-  return value
-    .toString()
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+function setHtml(id, value) {
+  const el = $(id);
+  if (el) el.innerHTML = value;
+}
+
+function animateMetric(id, target, options = {}) {
+  const el = $(id);
+  if (!el) return;
+
+  const {
+    prefix = "",
+    suffix = "",
+    decimals = 0,
+    duration = 700,
+  } = options;
+
+  const endValue = Number(target);
+  if (!Number.isFinite(endValue) || prefersReducedMotion()) {
+    el.textContent = `${prefix}${endValue.toFixed(decimals)}${suffix}`;
+    return;
+  }
+
+  const start = performance.now();
+  const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+
+  function frame(now) {
+    const progress = Math.min(1, (now - start) / duration);
+    const current = endValue * easeOut(progress);
+    el.textContent = `${prefix}${current.toFixed(decimals)}${suffix}`;
+    if (progress < 1) requestAnimationFrame(frame);
+  }
+
+  requestAnimationFrame(frame);
+}
+
+function confidenceBand(value) {
+  if (value >= 75) return "High confidence";
+  if (value >= 55) return "Stable confidence";
+  if (value >= 40) return "Moderate confidence";
+  return "Low confidence";
 }
 
 function highlightText(text, keyword, caseSensitive) {
   if (!keyword) return escapeHtml(text);
   const flags = caseSensitive ? "g" : "gi";
-  const safeKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const regex = new RegExp(safeKeyword, flags);
-  return escapeHtml(text).replace(regex, (match) => `<mark class="bg-primary/20 text-primary">${match}</mark>`);
+  const safe = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return escapeHtml(text).replace(new RegExp(safe, flags), (m) => `<mark>${m}</mark>`);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Toast
+// ─────────────────────────────────────────────────────────────────────────────
+
+let _toastTimer = null;
+
+function showToast(message, type = "info") {
+  const bar = $("status-bar");
+  if (!bar) return;
+  bar.innerHTML = `<div class="toast-title">${escapeHtml(message)}</div>`;
+  bar.className = "visible" + (type === "ok" ? " ok" : type === "error" ? " error" : "");
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { bar.className = ""; }, 3500);
+}
+
+function revealContentStages() {
+  document.querySelectorAll('.content-stage').forEach((el) => {
+    requestAnimationFrame(() => el.classList.add('is-visible'));
+  });
+}
+
+function injectSearchSkeleton() {
+  const listEl = $("searchResults");
+  const metaEl = $("searchMeta");
+  if (!listEl) return;
+  if (metaEl) metaEl.textContent = "Searching feedback…";
+  listEl.innerHTML = Array.from({ length: 3 }, () => `
+    <div class="result-item" aria-hidden="true">
+      <div class="result-item-header" style="margin-bottom:14px;display:flex;gap:10px;flex-wrap:wrap;">
+        <div class="skeleton skel" style="width:24%;min-width:80px;"></div>
+        <div class="skeleton skel" style="width:16%;min-width:64px;"></div>
+      </div>
+      <div class="result-text">
+        <div class="skeleton skel" style="height:14px;margin-bottom:10px;width:100%;"></div>
+        <div class="skeleton skel" style="height:14px;width:92%;"></div>
+      </div>
+    </div>`).join("");
+}
+
+function setupExplorerInteractions() {
+  const results = $("searchResults");
+  if (!results) return;
+
+  results.addEventListener("click", (event) => {
+    const button = event.target.closest(".result-expand-btn");
+    if (!button) return;
+    const card = button.closest(".result-item");
+    if (!card) return;
+    const full = card.querySelector(".result-text-full");
+    const preview = card.querySelector(".result-text-preview");
+    const expanded = card.classList.toggle("expanded");
+    if (full) full.hidden = !expanded;
+    if (preview) preview.style.display = expanded ? "none" : "block";
+    button.textContent = expanded ? "Show less" : "Show full entry";
+    button.setAttribute('aria-expanded', String(expanded));
+  });
+
+  results.addEventListener("keydown", (event) => {
+    const button = event.target.closest(".result-expand-btn");
+    if (button && (event.key === "Enter" || event.key === " ")) {
+      event.preventDefault();
+      button.click();
+    }
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Loading overlay — animated steps
+// ─────────────────────────────────────────────────────────────────────────────
+
+let _stepTimers = [];
+
+function setLoading(flag, message) {
+  const overlay = $("loading-overlay");
+  if (!overlay) return;
+  if (flag) {
+    overlay.classList.add("visible");
+    _stepTimers.forEach(clearTimeout); _stepTimers = [];
+    document.querySelectorAll(".loading-step").forEach((el) => {
+      el.classList.remove("done","active");
+      const ic = el.querySelector(".step-icon");
+      if (ic) ic.textContent = "○";
+    });
+    const title = $("loading-title");
+    if (title && message) title.textContent = message;
+    _animateSteps();
+  } else {
+    _stepTimers.forEach(clearTimeout); _stepTimers = [];
+    document.querySelectorAll(".loading-step").forEach((el) => {
+      el.classList.add("done"); el.classList.remove("active");
+      const ic = el.querySelector(".step-icon");
+      if (ic) ic.textContent = "✓";
+    });
+    const t = setTimeout(() => { overlay.classList.remove("visible"); }, 280);
+    _stepTimers.push(t);
+  }
+}
+
+function _animateSteps() {
+  const steps = document.querySelectorAll(".loading-step");
+  if (!steps.length) return;
+  [0, 550, 1200, 1950, 2800].forEach((delay, i) => {
+    const t = setTimeout(() => {
+      const ov = $("loading-overlay");
+      if (!ov || !ov.classList.contains("visible")) return;
+      if (i > 0) {
+        const prev = steps[i-1];
+        if (prev) { prev.classList.remove("active"); prev.classList.add("done"); const ic = prev.querySelector(".step-icon"); if (ic) ic.textContent = "✓"; }
+      }
+      const cur = steps[i];
+      if (cur) { cur.classList.add("active"); const ic = cur.querySelector(".step-icon"); if (ic) ic.textContent = "●"; }
+    }, delay);
+    _stepTimers.push(t);
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Session state
+// ─────────────────────────────────────────────────────────────────────────────
+
+const urlParams = new URLSearchParams(window.location.search);
+const currentSid = urlParams.get("sid");
+
+let latestAnalysis = null;
+let latestSearch = [];
+let latestKeyword = "";
+// Store detailed_analysis for enriched explorer cards
+let _detailedMap = {};  // feedback text → {label, confidence}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sidebar workspace info
+// ─────────────────────────────────────────────────────────────────────────────
+
+function updateWorkspaceInfo(data) {
+  const box = $("workspace-info");
+  if (!box) return;
+  box.style.display = "block";
+  const fnEl = $("ws-filename");
+  const countEl = $("ws-count");
+  const timeEl = $("ws-time");
+  if (fnEl && data.file) fnEl.textContent = data.file.name || "—";
+  if (countEl && data.stats) countEl.textContent = (data.stats.total || 0) + " records";
+  if (timeEl) timeEl.textContent = "Analyzed " + new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Navigation
+// ─────────────────────────────────────────────────────────────────────────────
+
+function navTo(path) {
+  const sidebar = $("sidebar");
+  const backdrop = $("sidebarBackdrop");
+  const toggle = $("menuToggle");
+  if (window.innerWidth < 1024 && sidebar) {
+    sidebar.classList.remove("open");
+    if (backdrop) backdrop.classList.remove("visible");
+    if (toggle) toggle.setAttribute("aria-expanded", "false");
+    document.body.classList.remove("sidebar-open");
+  }
+  window.location.href = currentSid ? `${path}?sid=${currentSid}` : path;
+}
+
+function setupNav() {
+  const path = window.location.pathname;
+  const activeMap = {
+    "/":"/sideUploadBtn", "/dashboard":"sideOverview", "/analytics":"sideInsights",
+    "/raw_data":"sideFeedback", "/compare":"sideCompare", "/reports":"sideReports",
+  };
+  Object.values(activeMap).forEach((id) => {
+    const el = $(id); if (el) { el.classList.remove("active"); el.removeAttribute("aria-current"); }
+  });
+  const activeId = activeMap[path];
+  if (activeId) { const el = $(activeId); if (el) { el.classList.add("active"); el.setAttribute("aria-current","page"); } }
+
+  const handlers = {
+    sideOverview:  () => navTo("/dashboard"),
+    sideFeedback:  () => navTo("/raw_data"),
+    sideInsights:  () => navTo("/analytics"),
+    sideReports:   () => navTo("/reports"),
+    sideCompare:   () => navTo("/compare"),
+    sideUploadBtn: () => { window.location.href = "/"; },
+  };
+  Object.entries(handlers).forEach(([id, fn]) => {
+    const el = $(id); if (el) el.addEventListener("click", (e) => { e.preventDefault(); fn(); });
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Upload & Analyze
+// ─────────────────────────────────────────────────────────────────────────────
+
 async function loadAnalysis() {
-  const file = selectedFile(fileEl);
-  if (!file) {
-    setStatus("Please upload a .txt or .csv file first.", "error");
-    return;
-  }
-
-  const formData = new FormData();
-  formData.append("feedback_file", file);
-
+  const fileEl = $("feedbackFile");
+  const file = fileEl && fileEl.files && fileEl.files.length ? fileEl.files[0] : null;
+  if (!file) { showToast("Please select a .txt or .csv file first.", "error"); return; }
+  const fd = new FormData();
+  fd.append("feedback_file", file);
   try {
-    setLoading(true);
-    setStatus(`Analyzing ${file.name} to memory...`);
-    const res = await fetch("/api/analyze", { method: "POST", body: formData });
-    let body = await res.json();
+    setLoading(true, `Analyzing ${file.name}…`);
+    const res = await fetch("/api/analyze", { method:"POST", body:fd });
+    const body = await res.json();
     if (!res.ok) throw new Error(body.error?.message || "Analysis failed");
-    
-    // Redirect to Dashboard with active Session ID
     window.location.href = `/dashboard?sid=${body.data.session_id}`;
-  } catch (err) {
-    setStatus(err.message, "error");
-    setLoading(false);
-  }
+  } catch (err) { showToast(err.message, "error"); setLoading(false); }
 }
 
 async function compareFiles() {
-  const file = selectedFile(fileEl);
-  const compareFile = selectedFile(compareFileEl);
-  if (!file || !compareFile) {
-    setStatus("Upload both primary and compare files.", "error");
-    return;
-  }
-
-  const formData = new FormData();
-  formData.append("feedback_file", file);
-  formData.append("feedback_file_compare", compareFile);
-
+  const fileA = $("compareFileBaseline");
+  const fileB = $("compareFile");
+  const f1 = fileA && fileA.files && fileA.files.length ? fileA.files[0] : null;
+  const f2 = fileB && fileB.files && fileB.files.length ? fileB.files[0] : null;
+  if (!f1 || !f2) { showToast("Please select both a baseline and a candidate file.", "error"); return; }
+  const fd = new FormData();
+  fd.append("feedback_file", f1);
+  fd.append("feedback_file_compare", f2);
   try {
-    setLoading(true);
-    setStatus("Running differential analysis...");
-    const res = await fetch("/api/compare", { method: "POST", body: formData });
+    setLoading(true, "Comparing datasets…");
+    const res = await fetch("/api/compare", { method:"POST", body:fd });
     const body = await res.json();
     if (!res.ok) throw new Error(body.error?.message || "Comparison failed");
-    const delta = body.data.delta;
-    setStatus(
-      `Differential complete — Δ Volume: ${delta.total_feedback_delta > 0 ? '+' : ''}${delta.total_feedback_delta} | Δ Positive: ${delta.positive_pct_delta > 0 ? '+' : ''}${delta.positive_pct_delta}% | Δ Rating: ${delta.avg_rating_delta ?? 'N/A'}`,
-      "ok"
-    );
-  } catch (err) {
-    setStatus(err.message, "error");
-  } finally {
-    setLoading(false);
-  }
+    const data = body.data;
+    if (window.location.pathname === "/compare" && typeof window._onCompareSuccess === "function") {
+      setLoading(false);
+      window._onCompareSuccess(data, f1.name, f2.name);
+      showToast("Comparison complete", "ok");
+      if (typeof window._logActivity === "function")
+        window._logActivity("success", "Datasets compared — " + f1.name + " vs " + f2.name, "Compare");
+    } else {
+      window.location.href = `/dashboard?sid=${data.session_id}`;
+    }
+  } catch (err) { showToast(err.message, "error"); setLoading(false); }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Search — enriched result cards
+// ─────────────────────────────────────────────────────────────────────────────
+
 async function runSearch() {
-  if (!currentSid) {
-    setStatus("No active session! Start from Home.", "error");
-    return;
-  }
-  
-  const keyword = keywordEl ? keywordEl.value.trim() : "";
-  const formData = new FormData();
-  formData.append("sid", currentSid);
-  formData.append("keyword", keyword);
-  if(caseSensitiveEl) formData.append("case_sensitive", String(caseSensitiveEl.checked));
-  if(matchModeEl) formData.append("match_mode", matchModeEl.value);
-  if(sentimentFilterEl) formData.append("sentiment_filter", sentimentFilterEl.value);
-  if(minRatingEl && minRatingEl.value) formData.append("min_rating", minRatingEl.value);
+  if (!currentSid) { showToast("No active session. Upload a file first.", "error"); return; }
+  const keyword = ($("keyword") || {}).value?.trim() || "";
+  const fd = new FormData();
+  fd.append("sid", currentSid);
+  fd.append("keyword", keyword);
+  fd.append("case_sensitive", String(($("caseSensitive") || {}).checked || false));
+  fd.append("match_mode", ($("matchMode") || {}).value || "partial");
+  fd.append("sentiment_filter", ($("sentimentFilter") || {}).value || "all");
+  const minRating = ($("minRating") || {}).value;
+  if (minRating) fd.append("min_rating", minRating);
+
+  const metaEl = $("searchMeta");
+  const listEl = $("searchResults");
+  if (listEl) injectSearchSkeleton();
 
   try {
-    setLoading(true);
-    setStatus("Searching raw dataset...");
-    const res = await fetch("/api/search", { method: "POST", body: formData });
+    const res = await fetch("/api/search", { method:"POST", body:fd });
     const body = await res.json();
     if (!res.ok) throw new Error(body.error?.message || "Search failed");
-    
     const data = body.data;
     latestSearch = data.matches || [];
     latestKeyword = data.keyword || "";
-    const meta = document.getElementById("searchMeta");
-    const list = document.getElementById("searchResults");
-    
-    if(meta) meta.textContent = `Found ${data.count} result(s) for "${data.keyword}"`;
-    if(list) {
-        list.innerHTML = "";
-        latestSearch.forEach((text) => {
-          const li = document.createElement("li");
-          li.className = "text-sm p-3 bg-surface-container-highest/20 border-l-2 border-cyan-400 rounded-sm";
-          li.innerHTML = highlightText(text, data.keyword, data.options.case_sensitive);
-          list.appendChild(li);
-        });
-        if (latestSearch.length === 0) list.innerHTML = '<li class="text-zinc-500 p-4 text-center font-headline uppercase tracking-widest text-[10px]">No matching feedback found in the DATAMATRIX.</li>';
+
+    if (metaEl) {
+      metaEl.textContent = data.count === 0
+        ? "No results found"
+        : `${data.count} result${data.count !== 1 ? "s" : ""} for "${escapeHtml(data.keyword)}"`;
     }
-    setStatus(`Search complete: ${data.count} match(es).`, "ok");
-  } catch (err) {
-    setStatus(err.message, "error");
-  } finally {
-    setLoading(false);
-  }
+
+    if (listEl) {
+      if (latestSearch.length === 0) {
+        listEl.innerHTML = `<div class="empty-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <div class="empty-search-title">No results found</div>
+          <div>Try broader keywords or remove filters to surface more feedback.</div>
+        </div>`;
+      } else {
+        listEl.innerHTML = latestSearch.map((text) => {
+          const detail = _detailedMap[text];
+          const label = detail ? detail.label : null;
+          const conf  = detail ? detail.confidence : null;
+          const badgeCls = label ? {
+            Positive:"badge-positive", Negative:"badge-negative",
+            Neutral:"badge-neutral", Mixed:"badge-mixed"
+          }[label] || "badge-neutral" : "";
+          const confBar = conf != null
+            ? `<div class="conf-bar-wrap">
+                <div class="conf-bar-track"><div class="conf-bar-fill" style="width:${conf}%;"></div></div>
+                <span>${conf}%</span>
+               </div>`
+            : "";
+          const badge = label
+            ? `<span class="badge ${badgeCls}">${escapeHtml(label)}</span>`
+            : "";
+          const previewText = text.length > 220 ? text.slice(0, 220) + "…" : text;
+          const longText = text.length > 220 ? text : "";
+          return `<div class="result-item" role="listitem">
+            ${badge || conf != null ? `<div class="result-item-header">${badge}${confBar}</div>` : ""}
+            <div class="result-text">
+              <div class="result-text-preview">${highlightText(previewText, data.keyword, data.options?.case_sensitive)}</div>
+              ${longText ? `<div class="result-text-full" hidden>${highlightText(longText, data.keyword, data.options?.case_sensitive)}</div>` : ""}
+            </div>
+            ${longText ? `<button type="button" class="result-expand-btn" aria-expanded="false">Show full entry</button>` : ""}
+          </div>`;
+        }).join("");
+      }
+    }
+    showToast(`${data.count} result${data.count !== 1 ? "s" : ""} found`, data.count > 0 ? "ok" : "info");
+  } catch (err) { showToast(err.message, "error"); }
+  finally { revealContentStages(); }
 }
 
-// ---------------------------------------------------------
-// DOM Rendering (Safe null checks for Multi-Page operation)
-// ---------------------------------------------------------
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Exports
+// ─────────────────────────────────────────────────────────────────────────────
+
+function exportExecutiveSummary() {
+  if (!currentSid) { showToast("No active session to export.", "error"); return; }
+  if (typeof window._logActivity === "function") window._logActivity("info","PDF report exported","PDF");
+  window.location.href = `/api/export-summary-pdf?sid=${currentSid}`;
+}
+
+function exportDetailedCsv() {
+  if (!currentSid) { showToast("No active session to export.", "error"); return; }
+  if (typeof window._logActivity === "function") window._logActivity("info","Detailed CSV exported","CSV");
+  window.location.href = `/api/export-detailed-csv?sid=${currentSid}`;
+}
+
+function exportSearch() {
+  if (!currentSid) { showToast("No active session.", "error"); return; }
+  if (latestSearch.length === 0) { showToast("Run a search first.", "error"); return; }
+  const csv = "Feedback\n" + latestSearch.map((s) => `"${s.replace(/"/g,'""')}"`).join("\n");
+  const blob = new Blob([csv], { type:"text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `search_${latestKeyword || "results"}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Render: Dashboard
+// ─────────────────────────────────────────────────────────────────────────────
+
 function renderDashboard(data) {
-  renderStats(data.stats);
-  renderSentiment(data.sentiment_percent);
-  renderCategories(data.categories);
-  renderRatings(data.ratings);
+  const total = data.stats?.total || 0;
+  const positivePct = Number(data.sentiment_percent?.Positive || 0);
+  const rating = data.average_rating;
+  const confidence = Number(data.overall_confidence || 0);
+
+  animateMetric("statTotal", total, { decimals: 0, duration: 640 });
+  animateMetric("statPositive", positivePct, { decimals: 1, suffix: "%", duration: 760 });
+  if (rating != null) animateMetric("statRating", Number(rating), { decimals: 2, suffix: " / 5", duration: 760 });
+  else setText("statRating", "N/A");
+  animateMetric("statConfidence", confidence, { decimals: 1, suffix: "%", duration: 760 });
+
+  renderDashboardStories(data);
+  renderDashboardNarrative(data);
+  renderConfidenceSummary(data);
+
+  if (data.sentiment_percent && typeof window._buildSentimentChart === "function")
+    window._buildSentimentChart(data);
+
+  if (data.categories && typeof window._buildCategoryChart === "function")
+    window._buildCategoryChart(data);
+
+  if (typeof window._buildConfidenceChart === "function")
+    window._buildConfidenceChart(data);
+
+  const ratingSection = $("ratingSection");
+  if (data.rating_distribution) {
+    if (ratingSection) ratingSection.style.display = "block";
+    if (typeof window._buildRatingChart === "function")
+      window._buildRatingChart(data);
+  } else if (ratingSection) {
+    ratingSection.style.display = "none";
+  }
+
+  // Business insights
+  renderStrengths(data.business_insights?.top_strengths);
+  renderComplaints(data.business_insights?.top_complaints);
   renderSuggestions(data.suggestions);
-  renderPriorityInsights(data.priority);
-  renderTopWords(data.top_words);
-  renderNegativeWords(data.negative_words);
-  setStatus("Analysis Rendered Successfully", "ok");
+
+  // Comparison
+  if (data.comparison) renderComparison(data.comparison);
+
+  // Success banner
+  const banner = $("successBanner");
+  const bannerText = $("successBannerText");
+  if (banner && bannerText && data.stats?.total) {
+    bannerText.textContent = `Analysis complete — ${data.stats.total} feedback entries processed`;
+    banner.style.display = "flex";
+    setTimeout(() => { if (banner) banner.style.display = "none"; }, 5000);
+  }
+
+  updateWorkspaceInfo(data);
 }
 
-function renderStats(stats) {
-  const el = document.getElementById("stats");
-  if (!el || !stats) return;
-  el.innerHTML = `
-    <div class="flex justify-between items-end">
-        <div class="text-[10px] uppercase font-headline text-zinc-500">Volumetric Sum</div>
-        <div class="text-3xl font-bold font-headline text-primary">${stats.total}</div>
+function renderDashboardStories(data) {
+  const total = data.stats?.total || 0;
+  const sentimentPercent = data.sentiment_percent || {};
+  const sentimentEntries = Object.entries(sentimentPercent).sort((a, b) => b[1] - a[1]);
+  const [topSentiment, topSentimentValue] = sentimentEntries[0] || ["Positive", 0];
+  const categories = Object.entries(data.categories || {}).sort((a, b) => b[1] - a[1]);
+  const [topCategory, topCategoryCount] = categories[0] || ["Uncategorized", 0];
+  const rating = data.average_rating;
+
+  const cards = [
+    {
+      eyebrow: "Sentiment lead",
+      title: `${topSentiment} sentiment leads at ${Number(topSentimentValue || 0).toFixed(1)}%`,
+      copy: `${pluralize(data.sentiment?.[topSentiment] || 0, "entry")} currently land in the strongest segment.`,
+    },
+    {
+      eyebrow: "Category focus",
+      title: `${topCategory} generates the highest feedback volume`,
+      copy: `${pluralize(topCategoryCount, "entry")} from ${pluralize(total, "record")} sit in this category.`,
+    },
+    {
+      eyebrow: "Quality signal",
+      title: rating != null ? `Average rating holds at ${rating}/5` : `Confidence sits at ${data.overall_confidence || 0}%`,
+      copy: rating != null
+        ? `${confidenceBand(Number(data.overall_confidence || 0))} supports the current rating signal.`
+        : `Use the confidence meter to judge how decisive the sentiment labels are.`,
+    },
+  ];
+
+  setHtml("dashboardStories", cards.map((card) => `
+    <div class="story-card">
+      <div class="story-eyebrow">${escapeHtml(card.eyebrow)}</div>
+      <div class="story-title">${escapeHtml(card.title)}</div>
+      <div class="story-copy">${escapeHtml(card.copy)}</div>
     </div>
-    <div class="flex justify-between items-end">
-        <div class="text-[10px] uppercase font-headline text-zinc-500">Signal Ratio</div>
-        <div class="text-xl font-bold font-headline text-zinc-300">${stats.processed}/${stats.failed}</div>
-    </div>
-  `;
+  `).join(""));
 }
 
-function renderSentiment(dist) {
-  const el = document.getElementById("sentimentBars");
-  if (!el || !dist) return;
-  el.className = "flex w-full h-4 rounded-full overflow-hidden";
-  el.innerHTML = `
-    <div style="width: ${dist.Positive || 0}%" class="bg-cyan-400"></div>
-    <div style="width: ${dist.Neutral || 0}%" class="bg-secondary"></div>
-    <div style="width: ${dist.Negative || 0}%" class="bg-error"></div>
-  `;
-}
+function renderDashboardNarrative(data) {
+  const total = data.stats?.total || 0;
+  const sentimentPercent = data.sentiment_percent || {};
+  const categories = Object.entries(data.categories || {}).sort((a, b) => b[1] - a[1]);
+  const [topCategory, topCategoryCount] = categories[0] || ["Uncategorized", 0];
+  const ratingDistribution = data.rating_distribution || {};
+  const ratingTop = Object.entries(ratingDistribution).sort((a, b) => Number(b[1]) - Number(a[1]))[0];
 
-function renderTopWords(words) {
-  const list = document.getElementById("topWords");
-  if (!list || !words) return;
-  list.innerHTML = "";
-  words.forEach(({ word, count }) => {
-    const li = document.createElement("li");
-    li.className = "flex justify-between items-center text-sm p-2 bg-surface-container-highest/20 hover:bg-surface-container-highest/60 transition-colors rounded-sm";
-    li.innerHTML = `<span class="text-on-surface-variant font-medium">${escapeHtml(word)}</span><span class="text-cyan-400 font-headline text-xs">${count}</span>`;
-    list.appendChild(li);
-  });
-}
+  setText("sentimentTotal", pluralize(total, "entry"));
+  setText("categoryKicker", categories.length ? `${categories.length} categories` : "Live split");
+  setText("ratingKicker", ratingTop ? `${ratingTop[0]}* leads` : "Histogram");
 
-function renderNegativeWords(words) {
-  const list = document.getElementById("negativeWords");
-  if (!list || !words) return;
-  list.innerHTML = "";
-  words.forEach(({ word, count }) => {
-    const li = document.createElement("li");
-    li.className = "flex justify-between items-center text-sm p-2 bg-error-container/20 border-l border-error hover:bg-error-container/50 transition-colors rounded-sm";
-    li.innerHTML = `<span class="text-error font-medium">${escapeHtml(word)}</span><span class="text-error/70 font-headline text-xs">${count}</span>`;
-    list.appendChild(li);
-  });
-}
+  setText(
+    "sentimentStory",
+    `Positive, negative, neutral, and mixed feedback are shown in one responsive stack so proportions stay easy to compare at a glance.`
+  );
+  setText(
+    "categoryStory",
+    categories.length
+      ? `${topCategory} contributes ${topCategoryCount} ${topCategoryCount === 1 ? "entry" : "entries"}, making it the largest source of feedback volume.`
+      : "Category distribution will appear here after analysis."
+  );
 
-function renderCategories(distribution) {
-  const el = document.getElementById("categories");
-  if (!el || !distribution) return;
-  el.innerHTML = "";
-  const max = Math.max(...Object.values(distribution), 1);
-  for (const [name, count] of Object.entries(distribution)) {
-    const li = document.createElement("li");
-    li.className = "flex items-center gap-4";
-    li.innerHTML = `
-    <div class="flex-1">
-        <div class="flex justify-between text-[10px] uppercase font-headline mb-1">
-            <span>${escapeHtml(name)}</span>
-            <span class="text-cyan-400">${count}</span>
-        </div>
-        <div class="h-1 bg-surface-container-lowest rounded-full overflow-hidden">
-            <div class="h-full bg-cyan-400" style="width:${(count / max) * 100}%"></div>
-        </div>
-    </div>`;
-    el.appendChild(li);
+  if (data.rating_distribution) {
+    const count = ratingTop ? Number(ratingTop[1]) : 0;
+    const pct = total ? ((count / total) * 100).toFixed(1) : "0.0";
+    setText(
+      "ratingStory",
+      ratingTop
+        ? `${ratingTop[0]}* reviews are the most common band with ${count} entries, representing ${pct}% of rated feedback.`
+        : "Rating distribution will appear here after analysis."
+    );
   }
 }
 
-function renderRatings(distribution) {
-  const el = document.getElementById("ratings");
-  if (!el || !distribution) return;
-  const max = Math.max(...Object.values(distribution), 1);
-  el.innerHTML = [5, 4, 3, 2, 1].map(star => `
-      <div class="flex items-center gap-4">
-        <div class="w-10 h-10 rounded-sm bg-surface-container-highest flex items-center justify-center">
-            <span class="material-symbols-outlined text-secondary">star</span>
-        </div>
-        <div class="flex-1">
-            <div class="flex justify-between text-[10px] uppercase font-headline mb-1">
-                <span>${star} Star</span>
-                <span class="text-secondary">${distribution[star] || 0}</span>
-            </div>
-            <div class="h-1 bg-surface-container-lowest rounded-full overflow-hidden">
-                <div class="h-full bg-secondary" style="width:${((distribution[star] || 0) / max) * 100}%"></div>
-            </div>
-        </div>
-      </div>`).join("");
+function renderConfidenceSummary(data) {
+  const confidence = Number(data.overall_confidence || 0);
+  const scale = [
+    { label: "Low", active: confidence < 40 },
+    { label: "Moderate", active: confidence >= 40 && confidence < 55 },
+    { label: "Stable", active: confidence >= 55 && confidence < 75 },
+    { label: "High", active: confidence >= 75 },
+  ];
+
+  animateMetric("confidenceMetricValue", confidence, { decimals: 1, suffix: "%", duration: 760 });
+  setText(
+    "confidenceMetricCopy",
+    confidence >= 75
+      ? "The sentiment model is reading feedback with strong separation between positive and negative language."
+      : confidence >= 55
+        ? "Signals are consistent enough to trust directional changes while still watching mixed and neutral feedback."
+        : confidence >= 40
+          ? "Interpret this dataset with some caution because the language mix is less decisive."
+          : "Confidence is soft here, so this analysis is best used as a directional starting point."
+  );
+  setText("confidenceStory", `${confidenceBand(confidence)} across the full dataset.`);
+  setHtml(
+    "confidenceScale",
+    scale.map((item) => `<span class="confidence-chip${item.active ? " is-active" : ""}">${escapeHtml(item.label)}</span>`).join("")
+  );
+}
+
+function setText(id, value) {
+  const el = $(id); if (el) el.textContent = value;
+}
+
+function renderStrengths(items) {
+  const el = $("topStrengths"); if (!el) return;
+  if (!items || items.length === 0) { el.innerHTML = `<div style="font-size:13px;color:var(--muted);">No strengths detected.</div>`; return; }
+  el.innerHTML = items.map((s) => `
+    <div class="insight-item">
+      <span class="insight-item-icon" style="color:var(--success);">✓</span>
+      <span>${escapeHtml(s)}</span>
+    </div>`).join("");
+}
+
+function renderComplaints(items) {
+  const el = $("topComplaints"); if (!el) return;
+  if (!items || items.length === 0) { el.innerHTML = `<div style="font-size:13px;color:var(--muted);">No major complaints detected.</div>`; return; }
+  el.innerHTML = items.map((c) => `
+    <div class="insight-item">
+      <span class="insight-item-icon" style="color:var(--error);">⚠</span>
+      <span>${escapeHtml(c)}</span>
+    </div>`).join("");
 }
 
 function renderSuggestions(items) {
-  const list = document.getElementById("suggestions");
-  if (!list || !items) return;
-  list.innerHTML = "";
-  items.forEach((item) => {
-    const li = document.createElement("li");
-    li.className = "flex gap-3 items-start p-3 bg-surface-container-lowest border-l-2 border-cyan-400 rounded-sm";
-    li.innerHTML = `
-        <span class="material-symbols-outlined text-xs text-cyan-400 mt-1">auto_awesome</span>
-        <span class="text-xs text-on-surface-variant">${escapeHtml(item)}</span>
-    `;
-    list.appendChild(li);
-  });
+  const el = $("suggestions"); if (!el) return;
+  if (!items || items.length === 0) { el.innerHTML = `<div style="font-size:13px;color:var(--muted);">No recommendations available.</div>`; return; }
+  el.innerHTML = items.map((s) => `
+    <div class="insight-item">
+      <span class="insight-item-icon" style="color:var(--primary);">💡</span>
+      <span>${escapeHtml(s)}</span>
+    </div>`).join("");
+}
+
+function renderComparison(comparison) {
+  const panel = $("comparePanel"); if (!panel) return;
+  panel.style.display = "block";
+  const delta = comparison.delta;
+  const candidate = comparison.candidate;
+  const deltas = [
+    { label:"Volume change",      value:delta.total_feedback_delta, suffix:" records", positive:delta.total_feedback_delta > 0 },
+    { label:"Positive sentiment", value:delta.positive_pct_delta,   suffix:"%",        positive:delta.positive_pct_delta > 0 },
+    { label:"Negative sentiment", value:delta.negative_pct_delta,   suffix:"%",        positive:delta.negative_pct_delta < 0 },
+    { label:"Avg rating",         value:delta.avg_rating_delta,     suffix:"",         positive:(delta.avg_rating_delta||0) > 0 },
+  ];
+  const container = $("compareDeltas"); if (!container) return;
+  container.className = "compare-deltas-grid";
+  container.innerHTML = deltas.map((d) => {
+    const val = d.value;
+    const isNull = val === null || val === undefined;
+    const sign = !isNull && val > 0 ? "+" : "";
+    const neutral = !isNull && val === 0;
+    const cls = isNull || neutral ? "delta-neutral" : d.positive ? "delta-up" : "delta-down";
+    const arrow = isNull ? "" : val > 0 ? "↑" : val < 0 ? "↓" : "→";
+    const note = d.label === "Positive sentiment"
+      ? (val > 0 ? "Candidate gained positive share" : val < 0 ? "Positive share softened" : "Positive share held steady")
+      : d.label === "Negative sentiment"
+        ? (val < 0 ? "Complaint share improved" : val > 0 ? "Complaint share increased" : "Complaint share held steady")
+        : d.label === "Avg rating"
+          ? (val > 0 ? "Customer scoring improved" : val < 0 ? "Customer scoring declined" : "Rating held steady")
+          : (val > 0 ? "Candidate volume increased" : val < 0 ? "Candidate volume decreased" : "Volume matched baseline");
+    return `<div style="text-align:center;">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);margin-bottom:8px;">${escapeHtml(d.label)}</div>
+      <div class="compare-delta ${cls}">${arrow} ${isNull ? "N/A" : sign + val + d.suffix}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.45;">${escapeHtml(note)}</div>
+      ${candidate.average_rating != null && d.label === "Avg rating"
+        ? `<div style="font-size:11px;color:var(--muted);margin-top:4px;">Candidate: ${candidate.average_rating}</div>` : ""}
+    </div>`;
+  }).join("");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Render: Analytics
+// ─────────────────────────────────────────────────────────────────────────────
+
+function renderAnalytics(data) {
+  renderInsightsSummary(data);
+  renderTopWords(data.top_words);
+  renderNegativeWords(data.negative_top_words);
+  renderPositiveWords(data.positive_top_words);
+  renderPriorityInsights(data.priority_insights);
+  updateWorkspaceInfo(data);
+}
+
+function renderInsightsSummary(data) {
+  const priorities = data.priority_insights || [];
+  const strongestPositive = data.positive_top_words?.[0];
+  const strongestNegative = data.negative_top_words?.[0];
+
+  const cards = [
+    {
+      label: "Priority queue",
+      title: priorities.length ? `${priorities.length} action${priorities.length === 1 ? "" : "s"} need attention` : "No urgent actions surfaced",
+      copy: priorities.length
+        ? `${escapeHtml(priorities[0].title)} is currently the highest-impact recommendation.`
+        : "This dataset is not surfacing critical follow-up actions right now.",
+    },
+    {
+      label: "Positive lead",
+      title: strongestPositive ? `"${strongestPositive.word}" is the strongest positive signal` : "No strong positive pattern detected",
+      copy: strongestPositive
+        ? `${pluralize(strongestPositive.count, "mention")} reinforce this strength in the current dataset.`
+        : "Positive signal density is limited in this file.",
+    },
+    {
+      label: "Risk cue",
+      title: strongestNegative ? `"${strongestNegative.word}" is the loudest complaint cue` : "Negative language remains limited",
+      copy: strongestNegative
+        ? `${pluralize(strongestNegative.count, "mention")} point to a recurring issue worth monitoring.`
+        : "Negative signal density is currently subdued.",
+    },
+  ];
+
+  setHtml("insightsSummary", cards.map((card) => `
+    <div class="summary-card">
+      <div class="summary-label">${card.label}</div>
+      <div class="summary-title">${card.title}</div>
+      <div class="summary-copy">${card.copy}</div>
+    </div>
+  `).join(""));
+}
+
+function renderTopWords(words) {
+  const el = $("topWords"); if (!el || !words) return;
+  const topWord = words[0];
+  if ($("topWordsChip")) $("topWordsChip").textContent = topWord ? `${topWord.word} leads` : "Top terms";
+  el.innerHTML = words.map(({ word, count }) => `
+    <div class="word-tag" role="listitem" title="${escapeHtml(word)} appears ${count} times">
+      <span class="word-tag-label">${escapeHtml(word)}</span>
+      <span class="word-tag-count">${count}</span>
+    </div>`).join("");
+}
+
+function renderNegativeWords(words) {
+  const el = $("negativeWords"); if (!el || !words) return;
+  if (words.length === 0) { el.innerHTML = `<div style="font-size:13px;color:var(--muted);">No negative signals detected.</div>`; return; }
+  const max = Math.max(...words.map((w) => w.count), 1);
+  if ($("negWordsChip")) $("negWordsChip").textContent = `${words.length} tracked`;
+  el.innerHTML = words.map(({ word, count }, index) => `
+    <div class="signal-row" role="listitem">
+      <div class="signal-rank">${index + 1}</div>
+      <div class="signal-word">
+        <div class="signal-word-label" style="color:var(--error);">${escapeHtml(word)}</div>
+        <div class="signal-track" aria-hidden="true">
+          <div class="signal-fill" style="width:${(count/max)*100}%;background:linear-gradient(90deg, rgba(200,91,91,0.5), rgba(200,91,91,0.95));"></div>
+        </div>
+      </div>
+      <div class="signal-meta">${count}</div>
+    </div>`).join("");
+}
+
+function renderPositiveWords(words) {
+  const el = $("positiveWords"); if (!el || !words) return;
+  if (words.length === 0) { el.innerHTML = `<div style="font-size:13px;color:var(--muted);">No positive signals detected.</div>`; return; }
+  const max = Math.max(...words.map((w) => w.count), 1);
+  if ($("posWordsChip")) $("posWordsChip").textContent = `${words.length} tracked`;
+  el.innerHTML = words.map(({ word, count }, index) => `
+    <div class="signal-row" role="listitem">
+      <div class="signal-rank">${index + 1}</div>
+      <div class="signal-word">
+        <div class="signal-word-label" style="color:var(--success);">${escapeHtml(word)}</div>
+        <div class="signal-track" aria-hidden="true">
+          <div class="signal-fill" style="width:${(count/max)*100}%;background:linear-gradient(90deg, rgba(82,165,107,0.5), rgba(82,165,107,0.95));"></div>
+        </div>
+      </div>
+      <div class="signal-meta">${count}</div>
+    </div>`).join("");
 }
 
 function renderPriorityInsights(items) {
-  const list = document.getElementById("priorityInsights");
-  if (!list || !items) return;
-  list.innerHTML = "";
-  items.forEach((item) => {
-    const li = document.createElement("li");
-    li.className = "p-3 bg-error-container/10 border-l-2 border-error rounded-sm";
-    li.innerHTML = `
-        <div class="text-[10px] font-bold uppercase mb-1 text-error">${escapeHtml(item.title)}</div>
-        <div class="text-xs text-zinc-400">${escapeHtml(item.evidence)}</div>
-    `;
-    list.appendChild(li);
-  });
+  const el = $("priorityInsights"); if (!el || !items) return;
+  if (items.length === 0) { el.innerHTML = `<div style="font-size:13px;color:var(--muted);">No priority actions identified.</div>`; return; }
+  el.innerHTML = items.map((item, i) => `
+    <div class="priority-item" role="listitem">
+      <div class="priority-num" aria-hidden="true">${i+1}</div>
+      <div class="priority-body">
+        <div class="priority-title">${escapeHtml(item.title)}</div>
+        <div class="priority-evidence">${escapeHtml(item.evidence)}</div>
+        <div class="priority-action">→ ${escapeHtml(item.action)}</div>
+      </div>
+      <div class="priority-score" aria-label="Impact score ${item.score}">Impact ${item.score}</div>
+    </div>`).join("");
 }
 
-async function exportExecutiveSummary() {
-    if (!currentSid) return setStatus("No active session to export", "error");
-    window.location.href = `/api/export-summary-pdf?sid=${currentSid}`;
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// Session loader
+// ─────────────────────────────────────────────────────────────────────────────
 
-async function exportSearch() {
-  if (!currentSid) return setStatus("No active session! Start from Home.", "error");
-  if (latestSearch.length === 0) return setStatus("Search for data first to export.", "error");
-  
+async function loadSession() {
+  const path = window.location.pathname;
+  const subPages = ["/dashboard","/analytics","/raw_data","/reports","/compare"];
+  if (!subPages.includes(path)) return;
+
+  const zeroEl = $("zero-state");
+  const dataEl = $("data-sections");
+  const explorerEl = $("explorerSection");
+
+  if (path === "/compare" || path === "/reports") {
+    if (currentSid) {
+      try {
+        const res = await fetch(`/api/data?sid=${currentSid}`);
+        const body = await res.json();
+        if (res.ok) { latestAnalysis = body.data; updateWorkspaceInfo(latestAnalysis); }
+      } catch (_) {}
+    }
+    return;
+  }
+
+  if (!currentSid) { if (zeroEl) zeroEl.style.display = "block"; return; }
+
+  if (dataEl) {
+    dataEl.style.display = "block";
+  }
+  if (window.location.pathname === "/raw_data" && explorerEl) {
+    explorerEl.style.display = "block";
+  }
+
   try {
-    const csvContent = "Feedback Text\n" + latestSearch.map(s => `"${escapeHtml(s).replaceAll('"', '""')}"`).join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `search_export_${latestKeyword || "all"}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+    if (dataEl) {
+      dataEl.classList.add('page-loading');
+    }
+    setLoading(true, "Loading analysis…");
+    const res = await fetch(`/api/data?sid=${currentSid}`);
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error?.message || "Session expired");
+    latestAnalysis = body.data;
+
+    // Build detailed map for enriched explorer cards
+    if (latestAnalysis.detailed_analysis) {
+      _detailedMap = {};
+      latestAnalysis.detailed_analysis.forEach((d) => {
+        _detailedMap[d.feedback] = { label: d.label, confidence: d.confidence };
+      });
+    }
+
+    if (zeroEl) zeroEl.style.display = "none";
+
+    if (path === "/dashboard") {
+      if (dataEl) dataEl.style.display = "block";
+      renderDashboard(latestAnalysis);
+    } else if (path === "/analytics") {
+      if (dataEl) dataEl.style.display = "block";
+      renderAnalytics(latestAnalysis);
+    } else if (path === "/raw_data") {
+      if (explorerEl) explorerEl.style.display = "block";
+      updateWorkspaceInfo(latestAnalysis);
+    }
+
+    showToast("Analysis loaded", "ok");
   } catch (err) {
-    setStatus(err.message, "error");
+    if (zeroEl) zeroEl.style.display = "block";
+    showToast(err.message, "error");
+  } finally {
+    setLoading(false);
+    if (dataEl) {
+      dataEl.classList.remove('page-loading');
+    }
+    revealContentStages();
   }
 }
 
-// ---------------------------------------------------------
-// Navigation Hook
-// ---------------------------------------------------------
-const navHandlers = {
-    "navDashboard": () => window.location.href = currentSid ? `/dashboard?sid=${currentSid}` : "/dashboard",
-    "navAnalytics": () => window.location.href = currentSid ? `/analytics?sid=${currentSid}` : "/analytics",
-    "navReports": exportExecutiveSummary,
-    "sideOverview": () => window.location.href = currentSid ? `/dashboard?sid=${currentSid}` : "/dashboard",
-    "sideSentiment": () => window.location.href = currentSid ? `/analytics?sid=${currentSid}` : "/analytics",
-    "sideRawData": () => window.location.href = currentSid ? `/raw_data?sid=${currentSid}` : "/raw_data",
-    "sideExport": exportExecutiveSummary,
-    "sideUploadBtn": () => window.location.href = "/"
-};
+// ─────────────────────────────────────────────────────────────────────────────
+// Wire buttons
+// ─────────────────────────────────────────────────────────────────────────────
 
-Object.entries(navHandlers).forEach(([id, handler]) => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener("click", (e) => {
-        e.preventDefault();
-        handler();
-    });
-});
+function wireButtons() {
+  const map = {
+    refreshBtn: loadAnalysis, compareBtn: compareFiles,
+    searchBtn: runSearch, exportBtn: exportSearch,
+    exportSummaryBtn: exportExecutiveSummary,
+    downloadPdfBtn: exportExecutiveSummary,
+    downloadCsvBtn: exportDetailedCsv,
+  };
+  Object.entries(map).forEach(([id, fn]) => {
+    const el = $(id); if (el) el.addEventListener("click", fn);
+  });
+  const kw = $("keyword");
+  if (kw) kw.addEventListener("keydown", (e) => { if (e.key === "Enter") runSearch(); });
+}
 
-if (refreshBtn) refreshBtn.addEventListener("click", loadAnalysis);
-if (compareBtn) compareBtn.addEventListener("click", compareFiles);
-if (searchBtn) searchBtn.addEventListener("click", runSearch);
-if (exportSummaryBtn) exportSummaryBtn.addEventListener("click", exportExecutiveSummary);
-if (exportBtn) exportBtn.addEventListener("click", exportSearch);
+// ─────────────────────────────────────────────────────────────────────────────
+// Init
+// ─────────────────────────────────────────────────────────────────────────────
 
-// Enter key triggers search
-if (keywordEl) keywordEl.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") runSearch();
-});
-
-initTheme();
-
-// ---------------------------------------------------------
-// Auto-Load Active Session on any Page Load
-// ---------------------------------------------------------
-document.addEventListener("DOMContentLoaded", async () => {
-    // 1. Resolve Active Nav Glow
-    const path = window.location.pathname;
-    const activeMap = {
-        "/dashboard": "sideOverview",
-        "/analytics": "sideSentiment",
-        "/raw_data":  "sideRawData"
-    };
-    if (activeMap[path]) {
-        const el = document.getElementById(activeMap[path]);
-        if (el) {
-            el.classList.remove("text-zinc-500", "hover:text-zinc-300", "hover:bg-zinc-800/50");
-            el.classList.add("text-cyan-400", "bg-cyan-500/10", "border-l-2", "border-cyan-400", "shadow-[0_0_15px_rgba(0,219,231,0.3)]");
-        }
-    }
-
-    const subPages = ["/dashboard", "/analytics", "/raw_data"];
-    const zeroStateEl = document.getElementById("zero-state");
-    const dataSectionsEl = document.getElementById("data-sections");
-
-    // 2. Handle no-session zero-state
-    if (subPages.includes(path) && !currentSid) {
-        setStatus("NO ACTIVE UPLINK — Initialize a session from HQ.", "error");
-        if (zeroStateEl) zeroStateEl.classList.remove("hidden");
-        return;
-    }
-
-    // 3. Fetch Active Session and populate
-    if (currentSid) {
-        try {
-            setLoading(true);
-            const res = await fetch(`/api/data?sid=${currentSid}`);
-            const body = await res.json();
-            if (!res.ok) throw new Error(body.error?.message || "Invalid Session");
-            latestAnalysis = body.data;
-            if (dataSectionsEl) dataSectionsEl.classList.remove("hidden");
-            if (zeroStateEl) zeroStateEl.classList.add("hidden");
-            renderDashboard(latestAnalysis);
-            // Update avg rating display if exists
-            const avgEl = document.getElementById("avgRatingCurrent");
-            if (avgEl && latestAnalysis.average_rating != null) avgEl.textContent = latestAnalysis.average_rating;
-        } catch (e) {
-            setStatus("Session error: " + e.message, "error");
-            if (zeroStateEl) zeroStateEl.classList.remove("hidden");
-            console.error(e);
-        } finally {
-            setLoading(false);
-        }
-    }
-
-    // 4. Raw Data page: show prompt if no search has been run
-    if (path === "/raw_data" && currentSid) {
-        const list = document.getElementById("searchResults");
-        if (list && list.children.length === 0) {
-            list.innerHTML = '<li class="text-zinc-600 p-8 text-center font-headline uppercase tracking-[0.2em] text-[10px]">Enter a keyword to scan the DATAMATRIX ↑</li>';
-        }
-    }
+document.addEventListener("DOMContentLoaded", () => {
+  setupNav();
+  wireButtons();
+  setupExplorerInteractions();
+  loadSession();
 });

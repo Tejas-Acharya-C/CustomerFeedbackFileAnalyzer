@@ -30,11 +30,6 @@ class ParsedFeedback:
     total_bytes: int
 
 
-def _safe_lower_words(text: str) -> list[str]:
-    cleaned = re.sub(r"[^a-zA-Z0-9\s]", " ", text.lower())
-    return [w for w in cleaned.split() if len(w) > 1]
-
-
 def parse_uploaded_feedback(uploaded_file) -> ParsedFeedback:
     if not uploaded_file or not uploaded_file.filename:
         raise AnalysisError("Please upload a .txt or .csv file")
@@ -52,9 +47,18 @@ def parse_uploaded_feedback(uploaded_file) -> ParsedFeedback:
     if total_bytes == 0:
         raise AnalysisError("Uploaded file is empty")
 
-    content = raw.decode("utf-8-sig", errors="replace")
+    # UTF-8 detection with fallback chain
+    content = None
+    for encoding in ("utf-8-sig", "utf-8", "latin-1"):
+        try:
+            content = raw.decode(encoding)
+            break
+        except (UnicodeDecodeError, ValueError):
+            continue
+    if content is None:
+        content = raw.decode("utf-8", errors="replace")
     if extension == ".txt":
-        feedback = [line.strip() for line in content.splitlines() if line.strip()]
+        feedback = [fa.normalize_text(line.strip()) for line in content.splitlines() if line.strip()]
         if not feedback:
             raise AnalysisError("No valid feedback entries found in the selected file")
         return ParsedFeedback(
@@ -74,7 +78,7 @@ def parse_uploaded_feedback(uploaded_file) -> ParsedFeedback:
     rows: list[dict[str, Any]] = []
     for record in reader:
         rating_raw = (record.get("Rating") or "").strip()
-        feedback_text = (record.get("Feedback") or "").strip()
+        feedback_text = fa.normalize_text((record.get("Feedback") or "").strip())
         if not feedback_text:
             continue
         try:
@@ -105,12 +109,20 @@ def parse_uploaded_feedback(uploaded_file) -> ParsedFeedback:
     )
 
 
-def _top_negative_words(feedback_list: list[str], top_n: int = 8) -> list[dict[str, Any]]:
-    negatives = fa.analyze_sentiment(feedback_list)["Negative"]
-    if not negatives:
+def _top_sentiment_words(sentiment: dict[str, list[str]], label: str, top_n: int = 8) -> list[dict[str, Any]]:
+    items = sentiment.get(label, [])
+    if not items:
         return []
-    words = fa.word_frequency(negatives, top_n=top_n)
+    words = fa.word_frequency(items, top_n=top_n)
     return [{"word": word, "count": count} for word, count in words]
+
+
+def _top_negative_words(sentiment: dict[str, list[str]], top_n: int = 8) -> list[dict[str, Any]]:
+    return _top_sentiment_words(sentiment, "Negative", top_n)
+
+
+def _top_positive_words(sentiment: dict[str, list[str]], top_n: int = 8) -> list[dict[str, Any]]:
+    return _top_sentiment_words(sentiment, "Positive", top_n)
 
 
 def _action_suggestions(
@@ -119,15 +131,50 @@ def _action_suggestions(
     avg_rating: float | None,
 ) -> list[str]:
     suggestions: list[str] = []
+    total_categorized = sum(categories.values())
 
-    if sentiment_percent.get("Negative", 0) >= 35:
-        suggestions.append("Prioritize root-cause review for top negative comments this week.")
-    if categories.get("Delivery", 0) > categories.get("Service", 0):
-        suggestions.append("Audit shipping SLAs and packaging quality for delivery-heavy complaints.")
-    if categories.get("Support", 0) >= 5:
-        suggestions.append("Add support response-time KPI tracking for faster customer recovery.")
-    if avg_rating is not None and avg_rating < 3.5:
-        suggestions.append("Trigger product quality checks for low-rated SKUs and suppliers.")
+    neg_pct = sentiment_percent.get("Negative", 0)
+    mixed_pct = sentiment_percent.get("Mixed", 0)
+
+    if neg_pct >= 35:
+        suggestions.append(
+            f"Negative sentiment is critically high at {neg_pct}%. "
+            "Prioritize root-cause review for top negative comments this week."
+        )
+    elif neg_pct >= 20:
+        suggestions.append(
+            f"Negative sentiment at {neg_pct}% warrants monitoring. "
+            "Schedule a bi-weekly review of emerging complaint patterns."
+        )
+
+    if mixed_pct >= 15:
+        suggestions.append(
+            f"Mixed sentiment accounts for {mixed_pct}% of feedback. "
+            "Investigate experiences with both positive and negative aspects to isolate fixable gaps."
+        )
+
+    # Dynamic category-driven recommendations (top 2 dominant categories)
+    sorted_cats = sorted(categories.items(), key=lambda x: x[1], reverse=True)
+    for cat_name, count in sorted_cats[:2]:
+        if count > 0 and total_categorized > 0:
+            pct = round((count / total_categorized) * 100, 1)
+            if pct >= 30:
+                suggestions.append(
+                    f"{cat_name} dominates at {pct}% of categorized mentions ({count} items). "
+                    f"Conduct a focused {cat_name.lower()} quality review this cycle."
+                )
+
+    if avg_rating is not None and avg_rating < 3.0:
+        suggestions.append(
+            f"Average rating is critically low at {avg_rating}/5. "
+            "Trigger immediate product quality checks for lowest-rated items."
+        )
+    elif avg_rating is not None and avg_rating < 3.5:
+        suggestions.append(
+            f"Average rating of {avg_rating}/5 is below target. "
+            "Investigate low-rated experiences and close recurring gaps."
+        )
+
     if not suggestions:
         suggestions.append("Maintain current performance and monitor weekly sentiment trend.")
 
@@ -141,6 +188,46 @@ def _sentiment_label(feedback: str) -> str:
     if sentiment["Negative"]:
         return "Negative"
     return "Neutral"
+
+
+def _business_insights(
+    sentiment_percent: dict[str, float],
+    categories_raw: dict[str, list[str]],
+    avg_rating: float | None,
+) -> dict[str, Any]:
+    strengths = []
+    complaints = []
+    
+    # Calculate category performance
+    cat_stats = {}
+    for cat, items in categories_raw.items():
+        if not items:
+            continue
+        s = fa.analyze_sentiment(items)
+        pos_pct = (len(s["Positive"]) / len(items)) * 100
+        neg_pct = (len(s["Negative"]) / len(items)) * 100
+        cat_stats[cat] = {"pos": pos_pct, "neg": neg_pct, "count": len(items)}
+
+    # Top Strengths
+    sorted_pos = sorted(cat_stats.items(), key=lambda x: x[1]["pos"], reverse=True)
+    for cat, stats in sorted_pos:
+        if stats["pos"] >= 50 and stats["count"] >= 1:
+            strengths.append(f"{cat} performance ({round(stats['pos'])}% positive)")
+    
+    # Top Complaints
+    sorted_neg = sorted(cat_stats.items(), key=lambda x: x[1]["neg"], reverse=True)
+    for cat, stats in sorted_neg:
+        if stats["neg"] >= 30 and stats["count"] >= 1:
+            complaints.append(f"{cat} friction ({round(stats['neg'])}% negative)")
+
+    # Fallbacks
+    if not strengths: strengths = ["Overall sentiment stability"]
+    if not complaints: complaints = ["No major frictional clusters detected"]
+
+    return {
+        "top_strengths": strengths[:3],
+        "top_complaints": complaints[:3],
+    }
 
 
 def _priority_insights(
@@ -212,13 +299,14 @@ def _priority_insights(
 def build_analysis_payload(parsed: ParsedFeedback) -> dict[str, Any]:
     feedback_list = parsed.feedback_list
     stats = fa.get_statistics(feedback_list)
-    sentiment = fa.analyze_sentiment(feedback_list)
+    sentiment_data = fa.analyze_sentiment(feedback_list)
+    
     categories_raw = fa.detect_categories(feedback_list)
     categories = {name: len(items) for name, items in categories_raw.items()}
     top_words = fa.word_frequency(feedback_list, top_n=12)
 
     total = stats["total"]
-    sentiment_counts = {key: len(value) for key, value in sentiment.items()}
+    sentiment_counts = {key: len(value) for key, value in sentiment_data.items() if key != "detailed"}
     sentiment_percent = {
         key: round((count / total) * 100, 1) if total else 0
         for key, count in sentiment_counts.items()
@@ -231,8 +319,15 @@ def build_analysis_payload(parsed: ParsedFeedback) -> dict[str, Any]:
         avg_rating = None
         rating_dist = None
 
-    negative_top_words = _top_negative_words(feedback_list)
+    negative_top_words = _top_negative_words(sentiment_data)
+    positive_top_words = _top_positive_words(sentiment_data)
+    
     priority_insights = _priority_insights(sentiment_percent, categories, negative_top_words, avg_rating)
+    insights = _business_insights(sentiment_percent, categories_raw, avg_rating)
+
+    # Calculate overall confidence
+    detailed = sentiment_data.get("detailed", [])
+    avg_confidence = round(sum(d["confidence"] for d in detailed) / len(detailed), 1) if detailed else 0
 
     return {
         "source": "uploaded_csv" if parsed.extension == ".csv" else "uploaded_txt",
@@ -245,19 +340,55 @@ def build_analysis_payload(parsed: ParsedFeedback) -> dict[str, Any]:
         "sentiment": sentiment_counts,
         "sentiment_percent": sentiment_percent,
         "sentiment_series": [
-            {"label": "Positive", "count": sentiment_counts["Positive"]},
-            {"label": "Negative", "count": sentiment_counts["Negative"]},
-            {"label": "Neutral", "count": sentiment_counts["Neutral"]},
+            {"label": "Positive", "count": sentiment_counts.get("Positive", 0)},
+            {"label": "Negative", "count": sentiment_counts.get("Negative", 0)},
+            {"label": "Neutral", "count": sentiment_counts.get("Neutral", 0)},
+            {"label": "Mixed", "count": sentiment_counts.get("Mixed", 0)},
         ],
         "top_words": [{"word": word, "count": count} for word, count in top_words],
         "negative_top_words": negative_top_words,
+        "positive_top_words": positive_top_words,
         "categories": categories,
         "rating_distribution": rating_dist,
         "average_rating": avg_rating,
-        "samples": {key: value[:3] for key, value in sentiment.items()},
+        "overall_confidence": avg_confidence,
+        "samples": {key: value[:3] for key, value in sentiment_data.items() if key != "detailed"},
         "suggestions": _action_suggestions(sentiment_percent, categories, avg_rating),
         "priority_insights": priority_insights,
+        "business_insights": insights,
+        "detailed_analysis": detailed,
     }
+
+
+def generate_detailed_csv(payload: dict[str, Any], csv_rows: list[dict[str, Any]]) -> str:
+    """Generates a detailed CSV with original data + sentiment + category + confidence."""
+    output = io.StringIO()
+    # Find all original headers if CSV, otherwise just 'Feedback'
+    if csv_rows:
+        headers = ["Name", "Rating", "Category", "Sentiment", "Confidence", "Feedback"]
+    else:
+        headers = ["Feedback", "Sentiment", "Confidence"]
+    
+    writer = csv.DictWriter(output, fieldnames=headers)
+    writer.writeheader()
+    
+    detailed = payload.get("detailed_analysis", [])
+    
+    for idx, d in enumerate(detailed):
+        row = {
+            "Feedback": d["feedback"],
+            "Sentiment": d["label"],
+            "Confidence": f"{d['confidence']}%"
+        }
+        if csv_rows and idx < len(csv_rows):
+            orig = csv_rows[idx]
+            row["Name"] = orig.get("name", "N/A")
+            row["Rating"] = orig.get("rating", 0)
+            row["Category"] = orig.get("category", "Uncategorized")
+            
+        writer.writerow(row)
+        
+    return output.getvalue()
 
 
 def search_feedback(
@@ -275,8 +406,8 @@ def search_feedback(
     if match_mode not in {"partial", "exact"}:
         raise AnalysisError("match_mode must be 'partial' or 'exact'")
     sentiment_filter = sentiment_filter.strip().lower()
-    if sentiment_filter not in {"all", "positive", "negative", "neutral"}:
-        raise AnalysisError("sentiment_filter must be one of: all, positive, negative, neutral")
+    if sentiment_filter not in {"all", "positive", "negative", "neutral", "mixed"}:
+        raise AnalysisError("sentiment_filter must be one of: all, positive, negative, neutral, mixed")
     if min_rating is not None and (min_rating < 1 or min_rating > 5):
         raise AnalysisError("min_rating must be between 1 and 5")
 
@@ -292,10 +423,10 @@ def search_feedback(
         # Group analyze instead of one-by-one to save overhead
         full_sentiment = fa.analyze_sentiment(feedback_list)
         for label, items in full_sentiment.items():
+            if label == "detailed":
+                continue
             label_lower = label.lower()
             for item in items:
-                # Note: this assumes feedback strings are unique identifiers which is
-                # usually true for short feedback or sufficient for this app.
                 sentiment_map[item] = label_lower
 
     for idx, feedback in enumerate(feedback_list):

@@ -92,7 +92,7 @@ def test_search_invalid_min_rating_returns_400(client):
 
 
 def test_export_summary_pdf_success(client):
-    sid = get_session(client, b"Good feedback")
+    sid = get_session(client, b"Good feedback", filename="feedback.txt")
     res = client.get(f"/api/export-summary-pdf?sid={sid}")
     assert res.status_code == 200
     assert res.content_type == "application/pdf"

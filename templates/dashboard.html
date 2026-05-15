@@ -1,84 +1,948 @@
 {% extends "base.html" %}
-{% block title %}Dashboard Intel{% endblock %}
+{% block title %}Overview{% endblock %}
+{% block page_title %}Overview{% endblock %}
 
-{% block status_prompt %}{% endblock %}
+{% block topbar_actions %}
+<button class="btn-ghost" id="downloadPdfBtn" data-tooltip="Export PDF summary" aria-label="Export PDF summary">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+  <span>Export PDF</span>
+</button>
+<button class="btn-ghost" id="downloadCsvBtn" data-tooltip="Export detailed CSV" aria-label="Export detailed CSV">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+  <span>Export CSV</span>
+</button>
+{% endblock %}
 
 {% block content %}
-<!-- Zero-State Panel (shown when no session) -->
-<div id="zero-state" class="hidden flex flex-col items-center justify-center gap-6 py-32 text-center">
-    <span class="material-symbols-outlined text-6xl text-zinc-700 animate-pulse">satellite_alt</span>
-    <div class="text-zinc-400 font-headline uppercase tracking-[0.2em] text-sm">No Data Uplinked to the Matrix</div>
-    <div class="text-zinc-600 text-xs tracking-widest">You must run an analysis to populate this node.</div>
-    <a href="/" class="mt-2 px-8 py-2 bg-cyan-500/10 border border-cyan-400/30 text-cyan-400 font-headline text-[10px] uppercase tracking-[0.2em] rounded-sm hover:bg-cyan-500/20 transition-all shadow-[0_0_10px_rgba(0,219,231,0.2)]">RETURN TO HQ</a>
+<style>
+  .dash-hero {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+  @media (max-width: 900px) { .dash-hero { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 500px) { .dash-hero { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } }
+
+  .stat-card {
+    background: rgba(255,255,255,0.88);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.5);
+    border-radius: 14px;
+    padding: 18px 18px 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.04);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 3px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  .stat-card:hover {
+    box-shadow: 0 4px 20px rgba(0,0,0,0.09);
+    transform: translateY(-2px);
+  }
+  .stat-card:hover::before { opacity: 1; }
+  .stat-card.primary::before { background: linear-gradient(90deg, var(--primary), #6b7fe0); }
+  .stat-card.success::before { background: linear-gradient(90deg, var(--success), #6ec98a); }
+  .stat-card.warning::before { background: linear-gradient(90deg, var(--warning), #e8b85a); }
+  .stat-card.secondary::before { background: linear-gradient(90deg, var(--secondary), #5ab5b1); }
+
+  .stat-card-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 12px;
+  }
+
+  .stat-card-value {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1;
+    margin-bottom: 4px;
+    color: var(--text);
+  }
+
+  .stat-card-label {
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .story-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  @media (max-width: 900px) { .story-strip { grid-template-columns: 1fr; } }
+
+  .story-card {
+    background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.82));
+    border: 1px solid rgba(255,255,255,0.52);
+    border-radius: 14px;
+    padding: 16px 18px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.04);
+  }
+
+  .story-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .story-title {
+    font-size: 14px;
+    font-weight: 650;
+    color: var(--text);
+    line-height: 1.35;
+    letter-spacing: -0.01em;
+    margin-bottom: 4px;
+  }
+
+  .story-copy {
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .dash-main {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  @media (max-width: 920px) { .dash-main { grid-template-columns: 1fr; } }
+
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1.08fr 0.92fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  @media (max-width: 980px) { .detail-grid { grid-template-columns: 1fr; } }
+
+  .dash-panel {
+    background: rgba(255,255,255,0.88);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.5);
+    border-radius: 14px;
+    padding: 22px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.04);
+    min-width: 0;
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  @media (max-width: 640px) {
+    .panel-header {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .panel-kicker {
+      align-self: flex-start;
+    }
+  }
+
+  .panel-kicker {
+    flex-shrink: 0;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(69,86,200,0.08);
+    color: var(--primary);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+
+  .panel-subcopy {
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.45;
+    max-width: 46ch;
+  }
+
+  .chart-wrap {
+    position: relative;
+    width: 100%;
+  }
+
+  .sentiment-stack-wrap {
+    height: 108px;
+  }
+
+  .sentiment-legend {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 14px;
+  }
+  @media (max-width: 520px) { .sentiment-legend { grid-template-columns: 1fr; } }
+
+  .sentiment-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(0,0,0,0.05);
+    background: rgba(255,255,255,0.58);
+    transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+    cursor: pointer;
+  }
+  .sentiment-legend-item:hover {
+    transform: translateY(-1px);
+    border-color: rgba(69,86,200,0.18);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+  }
+  .sentiment-legend-item.is-muted { opacity: 0.45; }
+
+  .sentiment-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .sentiment-legend-meta {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+  }
+  @media (max-width: 520px) {
+    .sentiment-legend-meta {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+    }
+    .sentiment-legend-value {
+      white-space: normal;
+    }
+  }
+
+  .sentiment-legend-name {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .sentiment-legend-value {
+    font-size: 12px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .confidence-layout {
+    display: grid;
+    grid-template-columns: 128px 1fr;
+    gap: 18px;
+    align-items: center;
+  }
+  @media (max-width: 520px) { .confidence-layout { grid-template-columns: 1fr; } }
+
+  .confidence-chart-wrap { height: 132px; }
+
+  .confidence-metric {
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+
+  .confidence-copy {
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.5;
+    margin-bottom: 14px;
+  }
+
+  .confidence-scale {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .confidence-chip {
+    padding: 5px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    background: rgba(0,0,0,0.05);
+    color: var(--muted);
+  }
+
+  .confidence-chip.is-active {
+    background: rgba(62,142,138,0.14);
+    color: var(--secondary);
+  }
+
+  .insights-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+  @media (max-width: 900px) { .insights-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 560px) { .insights-grid { grid-template-columns: 1fr; } }
+
+  .insight-card {
+    background: rgba(255,255,255,0.88);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.5);
+    border-radius: 14px;
+    padding: 18px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.04);
+  }
+
+  .insight-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .insight-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .insight-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--muted);
+  }
+
+  .insight-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 7px 0;
+    border-bottom: 1px solid rgba(0,0,0,0.04);
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.45;
+  }
+  .insight-item:last-child { border-bottom: none; }
+
+  .insight-item-icon {
+    font-size: 13px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .compare-card {
+    background: rgba(255,255,255,0.88);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.5);
+    border-radius: 14px;
+    padding: 22px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.04);
+  }
+
+  .compare-deltas-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+  }
+  @media (max-width: 700px) { .compare-deltas-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+  .compare-delta {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .delta-up { background: rgba(82,165,107,0.12); color: var(--success); }
+  .delta-down { background: rgba(200,91,91,0.12); color: var(--error); }
+  .delta-neutral { background: rgba(103,107,116,0.1); color: var(--muted); }
+
+  .skel { height: 20px; border-radius: 6px; }
+  .skel-sm { height: 14px; border-radius: 4px; }
+
+  @media (max-width: 767px) {
+    .dash-panel {
+      padding: 18px;
+    }
+    .story-card {
+      padding: 14px 16px;
+    }
+    .sentiment-stack-wrap {
+      height: 120px;
+    }
+    .confidence-chart-wrap {
+      height: 122px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    #downloadPdfBtn span,
+    #downloadCsvBtn span { display: none; }
+  }
+
+  #zero-state { display: none; }
+  #data-sections { display: none; }
+</style>
+
+<div id="zero-state">
+  <div class="empty-state" style="max-width:400px;margin:0 auto;">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:48px;height:48px;color:var(--border);">
+      <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+    </svg>
+    <div style="font-size:17px;font-weight:700;color:var(--text);letter-spacing:-0.01em;">No analysis loaded</div>
+    <div style="font-size:14px;color:var(--muted);line-height:1.6;">Upload a feedback file to get started.</div>
+    <a href="/" class="btn-primary" style="margin-top:8px;">Upload a file</a>
+  </div>
 </div>
 
-<!-- VIEW: DASHBOARD (hidden until data loads) -->
-<div id="data-sections" class="hidden">
-<section id="view-dashboard" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6 mb-12">
-    <!-- Overview Stats -->
-    <div class="lg:col-span-4 glass-panel rounded-lg p-6 flex flex-col justify-between">
+<div id="data-sections">
+  <div id="successBanner" style="display:none;margin-bottom:16px;padding:12px 18px;background:rgba(82,165,107,0.08);border:1px solid rgba(82,165,107,0.2);border-radius:10px;align-items:center;gap:10px;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+    <span style="font-size:13.5px;font-weight:500;color:var(--success);" id="successBannerText">Analysis complete</span>
+  </div>
+
+  <div class="dash-hero content-stage" data-stage="shell" role="region" aria-label="Key metrics">
+    <div class="stat-card primary" role="article" aria-label="Total feedback count">
+      <div class="stat-card-icon" style="background:rgba(69,86,200,0.1);" aria-hidden="true">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      </div>
+      <div class="stat-card-value" id="statTotal"><div class="skeleton skel" style="width:56px;" aria-hidden="true"></div></div>
+      <div class="stat-card-label">Total Feedback</div>
+    </div>
+    <div class="stat-card success" role="article" aria-label="Positive sentiment percentage">
+      <div class="stat-card-icon" style="background:rgba(82,165,107,0.1);" aria-hidden="true">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div class="stat-card-value" style="color:var(--success);" id="statPositive"><div class="skeleton skel" style="width:48px;" aria-hidden="true"></div></div>
+      <div class="stat-card-label">Positive</div>
+    </div>
+    <div class="stat-card warning" role="article" aria-label="Average rating">
+      <div class="stat-card-icon" style="background:rgba(217,164,65,0.1);" aria-hidden="true">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      </div>
+      <div class="stat-card-value" style="color:var(--warning);" id="statRating"><div class="skeleton skel" style="width:40px;" aria-hidden="true"></div></div>
+      <div class="stat-card-label">Avg Rating</div>
+    </div>
+    <div class="stat-card secondary" role="article" aria-label="Analysis confidence">
+      <div class="stat-card-icon" style="background:rgba(62,142,138,0.1);" aria-hidden="true">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--secondary)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <div class="stat-card-value" style="color:var(--secondary);" id="statConfidence"><div class="skeleton skel" style="width:48px;" aria-hidden="true"></div></div>
+      <div class="stat-card-label">Confidence</div>
+    </div>
+  </div>
+
+  <div class="story-strip content-stage" data-stage="metrics" id="dashboardStories" role="region" aria-label="Key data stories">
+    <div class="story-card" aria-hidden="true">
+      <div class="skeleton skel" style="width:55%;margin-bottom:10px;"></div>
+      <div class="skeleton skel" style="width:90%;margin-bottom:6px;"></div>
+      <div class="skeleton skel" style="width:80%;"></div>
+    </div>
+    <div class="story-card" aria-hidden="true">
+      <div class="skeleton skel" style="width:48%;margin-bottom:10px;"></div>
+      <div class="skeleton skel" style="width:88%;margin-bottom:6px;"></div>
+      <div class="skeleton skel" style="width:76%;"></div>
+    </div>
+    <div class="story-card" aria-hidden="true">
+      <div class="skeleton skel" style="width:50%;margin-bottom:10px;"></div>
+      <div class="skeleton skel" style="width:82%;margin-bottom:6px;"></div>
+      <div class="skeleton skel" style="width:72%;"></div>
+    </div>
+  </div>
+
+  <div class="dash-main content-stage" data-stage="charts">
+    <div class="dash-panel">
+      <div class="panel-header">
         <div>
-            <h3 class="text-[10px] font-headline uppercase tracking-[0.2em] text-cyan-500 mb-6 drop-shadow-[0_0_5px_rgba(0,219,231,0.5)]">SYNAPTIC NODE OVERVIEW</h3>
-            <div id="stats" class="space-y-4">
-                <div class="h-8 bg-surface-container-highest/30 rounded animate-pulse"></div>
-                <div class="h-8 bg-surface-container-highest/30 rounded animate-pulse w-3/4"></div>
-            </div>
+          <div class="section-heading">Sentiment Distribution</div>
+          <div class="panel-subcopy" id="sentimentStory">Sentiment mix will appear here after analysis.</div>
         </div>
-        <div class="mt-8 pt-6 border-t border-white/5">
-            <div class="flex justify-between items-center text-[10px] uppercase font-headline">
-                <span class="text-zinc-500 tracking-widest">PROCESSING DELTA</span>
-                <span class="text-cyan-400">+14.2%</span>
-            </div>
-        </div>
+        <div class="panel-kicker" id="sentimentTotal">0 entries</div>
+      </div>
+      <div class="chart-wrap sentiment-stack-wrap">
+        <canvas id="sentimentChart" aria-label="Sentiment distribution chart"></canvas>
+      </div>
+      <div class="sentiment-legend" id="sentimentLegend" role="list" aria-label="Sentiment legend"></div>
     </div>
 
-    <!-- Sentiment Chart -->
-    <div class="lg:col-span-8 glass-panel rounded-lg p-6 flex flex-col justify-between">
-        <div class="flex justify-between items-start mb-8">
-            <h3 class="text-[10px] font-headline uppercase tracking-[0.2em] text-secondary mb-6 drop-shadow-[0_0_5px_rgba(235,178,255,0.4)]">BIOMETRIC SENTIMENT RESONANCE</h3>
-            <div class="flex gap-2">
-                <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
-                <span class="w-2 h-2 rounded-full bg-secondary"></span>
-                <span class="w-2 h-2 rounded-full bg-error"></span>
-            </div>
+    <div class="dash-panel">
+      <div class="panel-header">
+        <div>
+          <div class="section-heading">Category Breakdown</div>
+          <div class="panel-subcopy" id="categoryStory">Category distribution will appear here after analysis.</div>
         </div>
-        <div id="sentimentBars" class="flex w-full h-4 rounded-full overflow-hidden bg-surface-container-highest/50 relative mb-6">
-            <div class="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400/10 to-transparent w-[200%] animate-[translateX_2s_infinite]"></div>
-        </div>
+        <div class="panel-kicker" id="categoryKicker">Live split</div>
+      </div>
+      <div class="chart-wrap" style="height:240px;">
+        <canvas id="categoryChart" aria-label="Category breakdown chart"></canvas>
+      </div>
     </div>
-</section>
+  </div>
 
-<section id="view-dashboard-bottom" class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-12">
-    <!-- Ratings Card -->
-    <div class="lg:col-span-12 glass-panel rounded-lg p-6 flex flex-col justify-between">
-        <h3 class="text-[10px] font-headline uppercase tracking-[0.2em] text-primary mb-6 drop-shadow-[0_0_5px_rgba(225,253,255,0.4)]">QUANTUM RATING DISTRIBUTION MATRIX</h3>
-        <div id="ratings" class="grid grid-cols-5 gap-4">
-            <div class="h-10 rounded-sm bg-surface-container-highest/40 animate-pulse col-span-5"></div>
+  <div class="detail-grid content-stage" data-stage="charts">
+    <div id="ratingSection" style="display:none;">
+      <div class="dash-panel">
+        <div class="panel-header">
+          <div>
+            <div class="section-heading">Rating Distribution</div>
+            <div class="panel-subcopy" id="ratingStory">Rating distribution will appear here after analysis.</div>
+          </div>
+          <div class="panel-kicker" id="ratingKicker">Histogram</div>
         </div>
+        <div class="chart-wrap" style="height:220px;">
+          <canvas id="ratingChart" aria-label="Rating distribution chart"></canvas>
+        </div>
+      </div>
     </div>
 
-    <!-- Comparison Summary -->
-    <div class="lg:col-span-12 glass-panel rounded-lg p-6 bg-gradient-to-r from-surface-container/80 to-surface-container-high/40">
-        <div class="flex flex-col md:flex-row justify-between items-center gap-8">
-            <div class="flex items-center gap-8">
-                <div class="text-center">
-                    <div class="text-[9px] text-cyan-500/80 font-headline uppercase tracking-[0.25em] mb-1">ALPHA SEQUENCE</div>
-                    <div id="avgRatingCurrent" class="text-3xl font-bold text-primary">-</div>
-                    <div class="text-[10px] text-cyan-400 font-headline">Avg Rating</div>
-                </div>
-                <div class="h-12 w-[1px] bg-white/10"></div>
-                <div class="text-center">
-                    <div class="text-[9px] text-zinc-500 font-headline uppercase tracking-[0.25em] mb-1">BETA SEQUENCE</div>
-                    <div class="text-3xl font-bold text-zinc-600">-</div>
-                    <div class="text-[10px] text-zinc-500 font-headline">Avg Rating</div>
-                </div>
-            </div>
-            <div class="flex-1 max-w-xl">
-                <div class="text-[9px] font-headline uppercase tracking-[0.25em] text-zinc-500 mb-2 border-b border-white/5 pb-2">TEMPORAL DIFFERENTIAL ANALYSIS</div>
-                <div id="compareSummary" class="text-sm italic text-on-surface-variant font-light text-center w-full">Run RUN DIFFERENTIAL on home to compare datasets.</div>
-            </div>
+    <div class="dash-panel">
+      <div class="panel-header">
+        <div>
+          <div class="section-heading">Confidence Metrics</div>
+          <div class="panel-subcopy" id="confidenceStory">Confidence scoring shows how decisive the sentiment classification is across this dataset.</div>
         </div>
+        <div class="panel-kicker">Model signal</div>
+      </div>
+      <div class="confidence-layout">
+        <div class="chart-wrap confidence-chart-wrap">
+          <canvas id="confidenceChart" aria-label="Confidence metrics chart"></canvas>
+        </div>
+        <div>
+          <div class="confidence-metric" id="confidenceMetricValue">0%</div>
+          <div class="confidence-copy" id="confidenceMetricCopy">Confidence meter will update after analysis.</div>
+          <div class="confidence-scale" id="confidenceScale" aria-label="Confidence scale"></div>
+        </div>
+      </div>
     </div>
-</section>
+  </div>
+
+  <div class="insights-grid content-stage" data-stage="insights">
+    <div class="insight-card">
+      <div class="insight-card-header">
+        <div class="insight-dot" style="background:var(--success);"></div>
+        <div class="insight-title">Strengths</div>
+      </div>
+      <div id="topStrengths">
+        <div class="skeleton skel-sm" style="margin-bottom:8px;" aria-hidden="true"></div>
+        <div class="skeleton skel-sm" style="margin-bottom:8px;width:80%;" aria-hidden="true"></div>
+      </div>
+    </div>
+    <div class="insight-card">
+      <div class="insight-card-header">
+        <div class="insight-dot" style="background:var(--error);"></div>
+        <div class="insight-title">Complaints</div>
+      </div>
+      <div id="topComplaints">
+        <div class="skeleton skel-sm" style="margin-bottom:8px;" aria-hidden="true"></div>
+        <div class="skeleton skel-sm" style="margin-bottom:8px;width:75%;" aria-hidden="true"></div>
+      </div>
+    </div>
+    <div class="insight-card">
+      <div class="insight-card-header">
+        <div class="insight-dot" style="background:var(--primary);"></div>
+        <div class="insight-title">Recommendations</div>
+      </div>
+      <div id="suggestions">
+        <div class="skeleton skel-sm" style="margin-bottom:8px;" aria-hidden="true"></div>
+        <div class="skeleton skel-sm" style="margin-bottom:8px;width:85%;" aria-hidden="true"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="comparePanel" class="content-stage" data-stage="insights" style="display:none;">
+    <div class="compare-card">
+      <div class="section-heading" style="margin-bottom:14px;">Dataset Comparison</div>
+      <div id="compareDeltas" class="compare-deltas-grid" role="region" aria-label="Comparison delta metrics"></div>
+    </div>
+  </div>
 </div>
+
+<script>
+let _sentChart = null;
+let _catChart = null;
+let _ratChart = null;
+let _confChart = null;
+
+if (typeof Chart !== 'undefined') {
+  Chart.defaults.font.family = "'Inter', sans-serif";
+  Chart.defaults.color = '#676B74';
+  Chart.defaults.plugins.legend.display = false;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    Chart.defaults.animation.duration = 0;
+  } else {
+    Chart.defaults.animation.duration = 760;
+    Chart.defaults.animation.easing = 'easeOutCubic';
+  }
+}
+
+const chartCenterLabelPlugin = {
+  id: 'chartCenterLabelPlugin',
+  afterDatasetsDraw(chart, _args, pluginOptions) {
+    if (!pluginOptions || !pluginOptions.text) return;
+    const meta = chart.getDatasetMeta(0);
+    if (!meta || !meta.data || !meta.data.length) return;
+    const point = meta.data[0];
+    const ctx = chart.ctx;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#1E1E24';
+    ctx.font = '700 26px Inter, sans-serif';
+    ctx.fillText(pluginOptions.text, point.x, point.y + 2);
+    ctx.fillStyle = '#676B74';
+    ctx.font = '600 11px Inter, sans-serif';
+    ctx.fillText(pluginOptions.subtext || '', point.x, point.y + 20);
+    ctx.restore();
+  }
+};
+
+if (typeof Chart !== 'undefined' && !Chart.registry.plugins.get('chartCenterLabelPlugin')) {
+  Chart.register(chartCenterLabelPlugin);
+}
+
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+function alpha(hex, opacity) {
+  const value = hex.replace('#', '');
+  const bigint = parseInt(value, 16);
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+}
+
+function responsiveFont() {
+  return window.innerWidth < 640 ? 11 : 12;
+}
+
+function buildSentimentLegend(labels, values, counts, colors) {
+  const legend = document.getElementById('sentimentLegend');
+  if (!legend) return;
+  legend.innerHTML = labels.map((label, index) => {
+    const hidden = _sentChart ? !_sentChart.isDatasetVisible(index) : false;
+    return `<button type="button" class="sentiment-legend-item${hidden ? ' is-muted' : ''}" data-index="${index}" role="listitem" aria-pressed="${hidden ? 'false' : 'true'}">
+      <span class="sentiment-swatch" style="background:${colors[index]};"></span>
+      <span class="sentiment-legend-meta">
+        <span class="sentiment-legend-name">${label}</span>
+        <span class="sentiment-legend-value">${values[index]}% · ${counts[index]} entries</span>
+      </span>
+    </button>`;
+  }).join('');
+
+  legend.querySelectorAll('[data-index]').forEach((button) => {
+    button.addEventListener('click', () => {
+      if (!_sentChart) return;
+      const index = Number(button.getAttribute('data-index'));
+      _sentChart.setDatasetVisibility(index, !_sentChart.isDatasetVisible(index));
+      _sentChart.update();
+      buildSentimentLegend(labels, values, counts, colors);
+    });
+  });
+}
+
+function buildSentimentChart(analysis) {
+  const canvas = document.getElementById('sentimentChart');
+  if (!canvas || typeof Chart === 'undefined') return;
+  if (_sentChart) _sentChart.destroy();
+
+  const dist = analysis.sentiment_percent || {};
+  const countsMap = analysis.sentiment || {};
+  const labels = ['Positive', 'Negative', 'Neutral', 'Mixed'];
+  const values = labels.map((label) => Number((dist[label] || 0).toFixed ? (dist[label] || 0).toFixed(1) : dist[label] || 0));
+  const counts = labels.map((label) => countsMap[label] || 0);
+  const colors = [cssVar('--success'), cssVar('--error'), '#9ca3af', cssVar('--warning')];
+  const context = canvas.getContext('2d');
+
+  _sentChart = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: ['Sentiment mix'],
+      datasets: labels.map((label, index) => {
+        const gradient = context.createLinearGradient(0, 0, canvas.width || 480, 0);
+        gradient.addColorStop(0, alpha(colors[index], 0.72));
+        gradient.addColorStop(1, alpha(colors[index], 0.98));
+        return {
+          label,
+          data: [values[index]],
+          countValue: counts[index],
+          backgroundColor: gradient,
+          borderColor: alpha(colors[index], 0.24),
+          borderWidth: 1,
+          borderRadius: index === 0 || index === labels.length - 1 ? 12 : 0,
+          borderSkipped: false,
+          barThickness: window.innerWidth < 640 ? 26 : 34,
+        };
+      })
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'nearest', axis: 'x', intersect: false },
+      scales: {
+        x: {
+          stacked: true,
+          min: 0,
+          max: 100,
+          grid: { display: false, drawBorder: false },
+          ticks: {
+            font: { size: responsiveFont() },
+            callback(value) { return `${value}%`; },
+            maxTicksLimit: 5,
+          },
+          border: { display: false }
+        },
+        y: {
+          stacked: true,
+          grid: { display: false, drawBorder: false },
+          ticks: { display: false },
+          border: { display: false }
+        }
+      },
+      plugins: {
+        tooltip: {
+          displayColors: false,
+          backgroundColor: 'rgba(30,30,36,0.92)',
+          padding: 12,
+          cornerRadius: 10,
+          titleFont: { size: 11, weight: '700' },
+          bodyFont: { size: 12, weight: '600' },
+          callbacks: {
+            title() { return 'Sentiment segment'; },
+            label(ctx) {
+              return `${ctx.dataset.label}: ${Number(ctx.parsed.x || 0).toFixed(1)}%`;
+            },
+            afterLabel(ctx) {
+              return `${ctx.dataset.countValue || 0} entries`;
+            }
+          }
+        }
+      }
+    }
+  });
+
+  buildSentimentLegend(labels, values, counts, colors);
+}
+
+function buildCategoryChart(analysis) {
+  const canvas = document.getElementById('categoryChart');
+  if (!canvas || typeof Chart === 'undefined') return;
+  if (_catChart) _catChart.destroy();
+
+  const categories = analysis.categories || {};
+  const total = analysis.stats?.total || 0;
+  const sorted = Object.entries(categories).sort((a, b) => b[1] - a[1]);
+  const labels = sorted.map(([label]) => label);
+  const values = sorted.map(([, value]) => value);
+  const max = Math.max(...values, 1);
+  const palette = [cssVar('--primary'), cssVar('--secondary'), cssVar('--success'), cssVar('--warning'), cssVar('--accent')];
+  const context = canvas.getContext('2d');
+
+  _catChart = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: labels.map((_, index) => {
+          const base = palette[index % palette.length];
+          const gradient = context.createLinearGradient(0, 0, canvas.width || 420, 0);
+          gradient.addColorStop(0, alpha(base, 0.56));
+          gradient.addColorStop(1, alpha(base, 0.98));
+          return gradient;
+        }),
+        borderRadius: 10,
+        borderSkipped: false,
+        barPercentage: 0.7,
+        categoryPercentage: 0.72,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      indexAxis: 'y',
+      scales: {
+        x: {
+          grid: { color: 'rgba(0,0,0,0.05)', drawBorder: false },
+          ticks: { font: { size: responsiveFont() }, maxTicksLimit: 5 },
+          suggestedMax: max * 1.15,
+          border: { display: false }
+        },
+        y: {
+          grid: { display: false },
+          ticks: { font: { size: window.innerWidth < 640 ? 11 : 12, weight: '600' } },
+          border: { display: false }
+        }
+      },
+      plugins: {
+        tooltip: {
+          backgroundColor: 'rgba(30,30,36,0.92)',
+          padding: 12,
+          cornerRadius: 10,
+          bodyFont: { size: 12, weight: '600' },
+          callbacks: {
+            label(ctx) { return `${ctx.parsed.x} entries`; },
+            afterLabel(ctx) {
+              const pct = total ? ((ctx.parsed.x / total) * 100).toFixed(1) : '0.0';
+              return `${pct}% of all feedback`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+function buildRatingChart(analysis) {
+  const canvas = document.getElementById('ratingChart');
+  if (!canvas || typeof Chart === 'undefined') return;
+  if (_ratChart) _ratChart.destroy();
+
+  const distribution = analysis.rating_distribution || {};
+  const total = Object.values(distribution).reduce((sum, value) => sum + value, 0);
+  const labels = ['1*', '2*', '3*', '4*', '5*'];
+  const values = [1, 2, 3, 4, 5].map((star) => distribution[star] || distribution[String(star)] || 0);
+  const colors = [cssVar('--error'), cssVar('--accent'), cssVar('--warning'), '#7ec89a', cssVar('--success')];
+  const context = canvas.getContext('2d');
+
+  _ratChart = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: colors.map((color) => {
+          const gradient = context.createLinearGradient(0, 0, 0, canvas.height || 220);
+          gradient.addColorStop(0, alpha(color, 0.98));
+          gradient.addColorStop(1, alpha(color, 0.58));
+          return gradient;
+        }),
+        borderRadius: 10,
+        borderSkipped: false,
+        barPercentage: 0.72,
+        categoryPercentage: 0.72,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { font: { size: window.innerWidth < 640 ? 11 : 12, weight: '700' } },
+          border: { display: false }
+        },
+        y: {
+          grid: { color: 'rgba(0,0,0,0.05)', drawBorder: false },
+          ticks: { font: { size: responsiveFont() }, maxTicksLimit: 4 },
+          border: { display: false }
+        }
+      },
+      plugins: {
+        tooltip: {
+          backgroundColor: 'rgba(30,30,36,0.92)',
+          padding: 12,
+          cornerRadius: 10,
+          bodyFont: { size: 12, weight: '600' },
+          callbacks: {
+            label(ctx) { return `${ctx.parsed.y || 0} entries`; },
+            afterLabel(ctx) {
+              const count = ctx.parsed.y || 0;
+              const pct = total ? ((count / total) * 100).toFixed(1) : '0.0';
+              return `${pct}% of rated feedback`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+function buildConfidenceChart(analysis) {
+  const canvas = document.getElementById('confidenceChart');
+  if (!canvas || typeof Chart === 'undefined') return;
+  if (_confChart) _confChart.destroy();
+
+  const value = Math.max(0, Math.min(100, Number(analysis.overall_confidence || 0)));
+  const color = value >= 75 ? cssVar('--success') : value >= 55 ? cssVar('--secondary') : value >= 40 ? cssVar('--warning') : cssVar('--error');
+  const context = canvas.getContext('2d');
+  const gradient = context.createLinearGradient(0, 0, canvas.width || 150, canvas.height || 150);
+  gradient.addColorStop(0, alpha(color, 0.72));
+  gradient.addColorStop(1, alpha(color, 0.98));
+
+  _confChart = new Chart(canvas, {
+    type: 'doughnut',
+    data: {
+      labels: ['Confidence', 'Remaining'],
+      datasets: [{
+        data: [value, 100 - value],
+        backgroundColor: [gradient, alpha(color, 0.14)],
+        borderWidth: 0,
+        hoverOffset: 0,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '78%',
+      plugins: {
+        tooltip: {
+          backgroundColor: 'rgba(30,30,36,0.92)',
+          padding: 12,
+          cornerRadius: 10,
+          bodyFont: { size: 12, weight: '600' },
+          callbacks: {
+            label(ctx) {
+              return ctx.dataIndex === 0 ? `Confidence: ${value}%` : `Remaining: ${100 - value}%`;
+            }
+          }
+        },
+        chartCenterLabelPlugin: {
+          text: `${Math.round(value)}%`,
+          subtext: 'confidence'
+        }
+      }
+    }
+  });
+}
+
+window._buildSentimentChart = buildSentimentChart;
+window._buildCategoryChart = buildCategoryChart;
+window._buildRatingChart = buildRatingChart;
+window._buildConfidenceChart = buildConfidenceChart;
+</script>
 {% endblock %}

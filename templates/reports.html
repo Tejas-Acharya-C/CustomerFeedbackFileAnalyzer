@@ -1,0 +1,446 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+{% block page_title %}Reports{% endblock %}
+
+{% block content %}
+<style>
+  .reports-intro {
+    max-width: 560px;
+    margin-bottom: 32px;
+  }
+
+  .reports-intro p {
+    font-size: 15px;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-top: 6px;
+  }
+
+  /* Export action cards */
+  .export-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 40px;
+  }
+
+  @media (max-width: 860px) { .export-cards { grid-template-columns: 1fr; } }
+
+  .export-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    transition: box-shadow 0.2s ease;
+  }
+
+  .export-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.07); }
+
+  .export-card-icon {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .export-card-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .export-card-desc {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.5;
+    flex: 1;
+  }
+
+  /* Session info banner */
+  .session-banner {
+    background: rgba(69,86,200,0.05);
+    border: 1px solid rgba(69,86,200,0.15);
+    border-radius: 10px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    font-size: 13.5px;
+    flex-wrap: wrap;
+  }
+
+  .session-banner svg { flex-shrink: 0; color: var(--primary); }
+
+  /* No-session state */
+  #no-session-state { display: none; }
+  #session-state    { display: none; }
+
+  /* Report history list */
+  .report-history {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .report-history-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+  }
+
+  .report-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 20px;
+    border-bottom: 1px solid rgba(0,0,0,0.04);
+    transition: background 0.15s;
+  }
+
+  .report-item:last-child { border-bottom: none; }
+  .report-item:hover { background: rgba(0,0,0,0.02); }
+
+  .report-item-icon {
+    width: 34px; height: 34px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .report-item-info { flex: 1; min-width: 0; }
+
+  .report-item-name {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .report-item-meta {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .report-item-action {
+    flex-shrink: 0;
+  }
+
+  /* Activity feed */
+  .activity-feed {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .activity-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 20px;
+    border-bottom: 1px solid rgba(0,0,0,0.04);
+    transition: background 0.15s;
+    flex-wrap: wrap;
+  }
+
+  .activity-item:last-child { border-bottom: none; }
+  .activity-item:hover { background: rgba(0,0,0,0.02); }
+
+  .activity-icon-wrap {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+    font-size: 13px;
+  }
+
+  .activity-icon-success { background: rgba(82,165,107,0.12);  color: var(--success); }
+  .activity-icon-warning { background: rgba(217,164,65,0.12);  color: var(--warning); }
+  .activity-icon-info    { background: rgba(69,86,200,0.1);    color: var(--primary); }
+
+  .activity-body { flex: 1; }
+
+  .activity-text {
+    font-size: 13.5px;
+    color: var(--text);
+    font-weight: 500;
+    line-height: 1.4;
+  }
+
+  .activity-time {
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .activity-badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 20px;
+    flex-shrink: 0;
+    align-self: center;
+  }
+
+  .badge-success { background: rgba(82,165,107,0.12);  color: var(--success); }
+  .badge-warning { background: rgba(217,164,65,0.12);  color: var(--warning); }
+  .badge-info    { background: rgba(69,86,200,0.1);    color: var(--primary); }
+
+  @media (max-width: 640px) {
+    .reports-intro {
+      margin-bottom: 24px;
+    }
+    .export-card,
+    .report-history {
+      border-radius: 14px;
+    }
+    .export-card {
+      padding: 18px;
+    }
+    .export-card .btn-primary,
+    .export-card .btn-secondary {
+      width: 100%;
+    }
+    .session-banner {
+      padding: 14px 16px;
+      align-items: flex-start;
+    }
+    .report-history-header,
+    .activity-item {
+      padding-left: 16px;
+      padding-right: 16px;
+    }
+    .activity-badge {
+      margin-left: 40px;
+      align-self: flex-start;
+    }
+  }
+</style>
+
+<!-- Intro -->
+<div class="reports-intro">
+  <h2 style="font-size:22px;font-weight:700;letter-spacing:-0.02em;color:var(--text);">Reports</h2>
+  <p>Export your analysis as a PDF executive summary or a detailed CSV with per-entry sentiment labels.</p>
+</div>
+
+<!-- No session state -->
+<div id="no-session-state">
+  <div class="empty-state" style="max-width:400px;margin:0 auto 40px;">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+    </svg>
+    <div style="font-size:16px;font-weight:600;color:var(--text);">No active session</div>
+    <div style="font-size:14px;color:var(--muted);line-height:1.5;">Upload and analyze a feedback file first, then return here to export your report.</div>
+    <a href="/" class="btn-primary" style="margin-top:8px;">Upload a file</a>
+  </div>
+</div>
+
+<!-- Session state -->
+<div id="session-state">
+
+  <!-- Session banner -->
+  <div class="session-banner" id="sessionBanner">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+    </svg>
+    <div>
+      Active session: <strong id="reportFileName">—</strong>
+      <span style="color:var(--muted);margin-left:8px;" id="reportRecordCount"></span>
+    </div>
+  </div>
+
+  <!-- Export action cards -->
+  <div class="export-cards">
+
+    <!-- PDF -->
+    <div class="export-card">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div class="export-card-icon" style="background:rgba(200,91,91,0.1);">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--error)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+        </div>
+        <div class="export-card-title">Executive Summary PDF</div>
+      </div>
+      <div class="export-card-desc">
+        A formatted two-page PDF with sentiment charts, category breakdown, business insights, and recommended actions. Ready for stakeholder review.
+      </div>
+      <button class="btn-primary" id="downloadPdfBtn" aria-label="Download executive summary as PDF" style="align-self:flex-start;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download PDF
+      </button>
+    </div>
+
+    <!-- CSV -->
+    <div class="export-card">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div class="export-card-icon" style="background:rgba(82,165,107,0.1);">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="8" y1="13" x2="16" y2="13"/>
+            <line x1="8" y1="17" x2="16" y2="17"/>
+          </svg>
+        </div>
+        <div class="export-card-title">Detailed Analysis CSV</div>
+      </div>
+      <div class="export-card-desc">
+        Every feedback entry with its sentiment label, confidence score, and original fields (name, rating, category for CSV uploads). Ideal for further analysis.
+      </div>
+      <button class="btn-secondary" id="downloadCsvBtn" aria-label="Download detailed analysis as CSV" style="align-self:flex-start;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download CSV
+      </button>
+    </div>
+  </div>
+
+  <!-- Activity feed -->
+  <div class="report-history">
+    <div class="report-history-header">Recent Activity</div>
+    <div class="activity-feed" id="activityFeed">
+      <!-- Populated by JS -->
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function() {
+  const sid = new URLSearchParams(window.location.search).get('sid');
+
+  // Activity log stored in sessionStorage so it persists across page navigations
+  const ACTIVITY_KEY = 'pulse_activity_' + (sid || 'none');
+
+  function getActivity() {
+    try { return JSON.parse(sessionStorage.getItem(ACTIVITY_KEY) || '[]'); }
+    catch { return []; }
+  }
+
+  function addActivity(type, text, badge) {
+    const items = getActivity();
+    items.unshift({ type, text, badge, time: new Date().toISOString() });
+    // Keep last 20
+    sessionStorage.setItem(ACTIVITY_KEY, JSON.stringify(items.slice(0, 20)));
+    renderActivity();
+  }
+
+  function formatTime(iso) {
+    try {
+      const d = new Date(iso);
+      const now = new Date();
+      const diffMs = now - d;
+      const diffMin = Math.floor(diffMs / 60000);
+      if (diffMin < 1) return 'Just now';
+      if (diffMin < 60) return diffMin + 'm ago';
+      const diffH = Math.floor(diffMin / 60);
+      if (diffH < 24) return diffH + 'h ago';
+      return d.toLocaleDateString();
+    } catch { return ''; }
+  }
+
+  function renderActivity() {
+    const feed = document.getElementById('activityFeed');
+    if (!feed) return;
+    const items = getActivity();
+
+    if (items.length === 0) {
+      feed.innerHTML = `<div style="padding:32px 20px;text-align:center;color:var(--muted);font-size:13.5px;">
+        No activity yet. Export a report to see it here.
+      </div>`;
+      return;
+    }
+
+    const iconMap = {
+      success: { cls: 'activity-icon-success', symbol: '✓', badgeCls: 'badge-success' },
+      warning: { cls: 'activity-icon-warning', symbol: '⚠', badgeCls: 'badge-warning' },
+      info:    { cls: 'activity-icon-info',    symbol: 'ℹ', badgeCls: 'badge-info'    },
+    };
+
+    feed.innerHTML = items.map(item => {
+      const ic = iconMap[item.type] || iconMap.info;
+      return `<div class="activity-item" role="listitem">
+        <div class="activity-icon-wrap ${ic.cls}" aria-hidden="true">${ic.symbol}</div>
+        <div class="activity-body">
+          <div class="activity-text">${item.text}</div>
+          <div class="activity-time">${formatTime(item.time)}</div>
+        </div>
+        ${item.badge ? `<span class="activity-badge ${ic.badgeCls}">${item.badge}</span>` : ''}
+      </div>`;
+    }).join('');
+  }
+
+  // Expose so download buttons can log activity
+  window._logActivity = addActivity;
+
+  // Show/hide states
+  const noSess = document.getElementById('no-session-state');
+  const sessSt = document.getElementById('session-state');
+
+  if (!sid) {
+    if (noSess) noSess.style.display = 'block';
+  } else {
+    if (sessSt) sessSt.style.display = 'block';
+    renderActivity();
+
+    // Populate session info from API
+    fetch('/api/data?sid=' + sid)
+      .then(r => r.json())
+      .then(body => {
+        if (!body.ok) return;
+        const d = body.data;
+        const fnEl = document.getElementById('reportFileName');
+        const rcEl = document.getElementById('reportRecordCount');
+        if (fnEl && d.file) fnEl.textContent = d.file.name || '—';
+        if (rcEl && d.stats) rcEl.textContent = d.stats.total + ' records';
+
+        // Log analysis event if not already logged
+        const items = getActivity();
+        const alreadyLogged = items.some(i => i.text && i.text.includes('Analysis loaded'));
+        if (!alreadyLogged && d.file) {
+          addActivity('success', 'Analysis loaded — ' + (d.file.name || 'file'), 'Loaded');
+        }
+      })
+      .catch(() => {});
+  }
+
+  // Override export buttons to also log activity
+  document.addEventListener('DOMContentLoaded', () => {
+    const pdfBtn = document.getElementById('downloadPdfBtn');
+    const csvBtn = document.getElementById('downloadCsvBtn');
+
+    if (pdfBtn) {
+      pdfBtn.addEventListener('click', () => {
+        addActivity('info', 'PDF report exported', 'PDF');
+      });
+    }
+    if (csvBtn) {
+      csvBtn.addEventListener('click', () => {
+        addActivity('info', 'Detailed CSV exported', 'CSV');
+      });
+    }
+  });
+})();
+</script>
+{% endblock %}

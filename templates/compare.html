@@ -1,0 +1,902 @@
+{% extends "base.html" %}
+{% block title %}Compare Datasets{% endblock %}
+{% block page_title %}Compare Datasets{% endblock %}
+
+{% block content %}
+<style>
+  .compare-intro {
+    max-width: 620px;
+    margin-bottom: 28px;
+  }
+
+  .compare-intro p {
+    font-size: 15px;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-top: 6px;
+  }
+
+  .cmp-upload-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+    margin-bottom: 24px;
+  }
+  @media (max-width: 760px) { .cmp-upload-grid { grid-template-columns: 1fr; } }
+
+  .cmp-upload-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+
+  .cmp-upload-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+
+  .cmp-label-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .cmp-drop-zone {
+    position: relative;
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 28px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: rgba(245,244,241,0.5);
+  }
+
+  .cmp-drop-zone:hover,
+  .cmp-drop-zone.drag-over {
+    background: rgba(69,86,200,0.04);
+  }
+
+  .cmp-drop-zone.baseline-zone:hover,
+  .cmp-drop-zone.baseline-zone.drag-over { border-color: var(--primary); }
+
+  .cmp-drop-zone.candidate-zone:hover,
+  .cmp-drop-zone.candidate-zone.drag-over { border-color: var(--secondary); }
+
+  .cmp-drop-zone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+
+  .cmp-drop-icon {
+    width: 32px;
+    height: 32px;
+    margin: 0 auto 10px;
+    opacity: 0.35;
+  }
+
+  .cmp-file-name {
+    font-size: 12.5px;
+    font-weight: 600;
+    margin-top: 8px;
+    display: none;
+  }
+
+  .cmp-file-name.baseline { color: var(--primary); }
+  .cmp-file-name.candidate { color: var(--secondary); }
+
+  .format-hint {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .format-tag {
+    display: inline-block;
+    padding: 2px 7px;
+    background: rgba(0,0,0,0.05);
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: monospace;
+    color: var(--muted);
+  }
+
+  #compareResults { display: none; }
+
+  .results-header-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  @media (max-width: 640px) { .results-header-row { flex-direction: column; } }
+
+  .results-title {
+    font-size: 16px;
+    font-weight: 650;
+    color: var(--text);
+  }
+
+  .comparison-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  @media (max-width: 900px) { .comparison-summary { grid-template-columns: 1fr; } }
+
+  .summary-card {
+    background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.82));
+    border: 1px solid rgba(255,255,255,0.52);
+    border-radius: 14px;
+    padding: 16px 18px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.04);
+  }
+
+  .summary-label {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .summary-title {
+    font-size: 14px;
+    font-weight: 650;
+    color: var(--text);
+    line-height: 1.35;
+    letter-spacing: -0.01em;
+    margin-bottom: 4px;
+  }
+
+  .summary-copy {
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .delta-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 22px;
+  }
+  @media (max-width: 900px) { .delta-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 520px) { .delta-grid { grid-template-columns: 1fr; } }
+
+  .delta-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 16px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .delta-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 22px rgba(0,0,0,0.06);
+  }
+
+  .delta-card-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  .delta-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .delta-up { background: rgba(82,165,107,0.12); color: var(--success); }
+  .delta-down { background: rgba(200,91,91,0.12); color: var(--error); }
+  .delta-flat { background: rgba(103,107,116,0.1); color: var(--muted); }
+
+  .delta-sub {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 8px;
+    line-height: 1.45;
+  }
+
+  .comparison-visuals {
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 16px;
+    margin-bottom: 22px;
+  }
+  @media (max-width: 980px) { .comparison-visuals { grid-template-columns: 1fr; } }
+
+  .viz-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+  }
+
+  .viz-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .viz-subcopy {
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.45;
+    margin-top: 4px;
+  }
+
+  .viz-chip {
+    padding: 5px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    background: rgba(69,86,200,0.08);
+    color: var(--primary);
+    white-space: nowrap;
+  }
+
+  .chart-wrap {
+    position: relative;
+    width: 100%;
+  }
+
+  .side-by-side {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  @media (max-width: 760px) { .side-by-side { grid-template-columns: 1fr; } }
+
+  .sbs-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+  }
+
+  .sbs-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .sbs-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .sbs-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+  }
+
+  .sbs-stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(0,0,0,0.04);
+    font-size: 13px;
+    gap: 14px;
+  }
+  .sbs-stat-row:last-child { border-bottom: none; }
+
+  .sbs-stat-label { color: var(--muted); font-weight: 500; }
+  .sbs-stat-value { font-weight: 600; color: var(--text); text-align: right; }
+
+  @media (max-width: 767px) {
+    .cmp-upload-card,
+    .viz-card,
+    .sbs-card {
+      padding: 18px;
+    }
+    .delta-card {
+      padding: 16px 14px;
+    }
+  }
+
+  @media (max-width: 520px) {
+    .compare-intro {
+      margin-bottom: 22px;
+    }
+    .cmp-drop-zone {
+      padding: 22px 14px;
+    }
+    .format-hint {
+      flex-wrap: wrap;
+    }
+    .sbs-stat-row {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+    }
+    .sbs-stat-value {
+      text-align: left;
+    }
+  }
+</style>
+
+<div class="compare-intro">
+  <h2 style="font-size:22px;font-weight:700;letter-spacing:-0.02em;color:var(--text);">Compare Two Datasets</h2>
+  <p>Upload a baseline and a candidate file to see how sentiment, volume, and ratings changed between them.</p>
+</div>
+
+<div class="cmp-upload-grid">
+  <div class="cmp-upload-card">
+    <div class="cmp-upload-label">
+      <div class="cmp-label-dot" style="background:var(--primary);"></div>
+      Baseline Dataset
+    </div>
+    <div class="cmp-drop-zone baseline-zone" id="cmpZoneA" role="button" aria-label="Upload baseline dataset" tabindex="0">
+      <input type="file" id="compareFileBaseline" accept=".txt,.csv,text/plain,text/csv" aria-label="Select baseline file" />
+      <svg class="cmp-drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="12" y1="18" x2="12" y2="12"/>
+        <line x1="9" y1="15" x2="15" y2="15"/>
+      </svg>
+      <div style="font-size:14px;font-weight:500;color:var(--text);">Drop file or <span style="color:var(--primary);">browse</span></div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px;">Your reference dataset</div>
+      <div id="cmpFileNameA" class="cmp-file-name baseline"></div>
+    </div>
+    <div class="format-hint">
+      <span class="format-tag">.csv</span>
+      <span class="format-tag">.txt</span>
+      <span>· Max 5 MB</span>
+    </div>
+  </div>
+
+  <div class="cmp-upload-card">
+    <div class="cmp-upload-label">
+      <div class="cmp-label-dot" style="background:var(--secondary);"></div>
+      Candidate Dataset
+    </div>
+    <div class="cmp-drop-zone candidate-zone" id="cmpZoneB" role="button" aria-label="Upload candidate dataset" tabindex="0">
+      <input type="file" id="compareFile" accept=".txt,.csv,text/plain,text/csv" aria-label="Select candidate file" />
+      <svg class="cmp-drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="12" y1="18" x2="12" y2="12"/>
+        <line x1="9" y1="15" x2="15" y2="15"/>
+      </svg>
+      <div style="font-size:14px;font-weight:500;color:var(--text);">Drop file or <span style="color:var(--secondary);">browse</span></div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px;">The dataset you want to compare</div>
+      <div id="cmpFileNameB" class="cmp-file-name candidate"></div>
+    </div>
+    <div class="format-hint">
+      <span class="format-tag">.csv</span>
+      <span class="format-tag">.txt</span>
+      <span>· Max 5 MB</span>
+    </div>
+  </div>
+</div>
+
+<div style="display:flex;gap:12px;align-items:center;margin-bottom:40px;flex-wrap:wrap;">
+  <button class="btn-primary" id="compareBtn" aria-label="Run dataset comparison">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+    Run Comparison
+  </button>
+  <span style="font-size:13px;color:var(--muted);" id="cmpHint">Select both files to compare</span>
+</div>
+
+<div id="compareResults" aria-live="polite">
+  <div class="results-header-row">
+    <div>
+      <div class="results-title">Comparison Results</div>
+      <div style="font-size:13px;color:var(--muted);margin-top:4px;" id="comparisonNarrative">Visual changes will appear here after both datasets are processed.</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);">
+        <span style="width:8px;height:8px;border-radius:50%;background:var(--primary);display:inline-block;"></span>
+        <span id="cmpLabelA">Baseline</span>
+      </span>
+      <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);">
+        <span style="width:8px;height:8px;border-radius:50%;background:var(--secondary);display:inline-block;"></span>
+        <span id="cmpLabelB">Candidate</span>
+      </span>
+    </div>
+  </div>
+
+  <div class="comparison-summary" id="comparisonSummary"></div>
+  <div class="delta-grid" id="deltaCards" role="region" aria-label="Comparison deltas"></div>
+
+  <div class="comparison-visuals">
+    <div class="viz-card">
+      <div class="viz-header">
+        <div>
+          <div class="section-heading">Sentiment Delta</div>
+          <div class="viz-subcopy">Before vs after sentiment share, using the same underlying percentages already returned by the backend.</div>
+        </div>
+        <div class="viz-chip" id="sentimentCompareChip">Live compare</div>
+      </div>
+      <div class="chart-wrap" style="height:260px;">
+        <canvas id="compareSentimentChart" aria-label="Sentiment comparison chart"></canvas>
+      </div>
+    </div>
+
+    <div class="viz-card" id="compareRatingCard" style="display:none;">
+      <div class="viz-header">
+        <div>
+          <div class="section-heading">Rating Delta</div>
+          <div class="viz-subcopy">Rating distribution shifts, shown only when both datasets include rating data.</div>
+        </div>
+        <div class="viz-chip" id="ratingCompareChip">Rating compare</div>
+      </div>
+      <div class="chart-wrap" style="height:260px;">
+        <canvas id="compareRatingChart" aria-label="Rating comparison chart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="side-by-side">
+    <div class="sbs-card">
+      <div class="sbs-card-header">
+        <div class="sbs-dot" style="background:var(--primary);"></div>
+        <div class="sbs-title" id="sbsTitleA">Baseline</div>
+      </div>
+      <div id="sbsStatsA"></div>
+    </div>
+
+    <div class="sbs-card">
+      <div class="sbs-card-header">
+        <div class="sbs-dot" style="background:var(--secondary);"></div>
+        <div class="sbs-title" id="sbsTitleB">Candidate</div>
+      </div>
+      <div id="sbsStatsB"></div>
+    </div>
+  </div>
+
+  <div style="padding:20px;background:rgba(69,86,200,0.04);border:1px solid rgba(69,86,200,0.12);border-radius:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+    <div>
+      <div style="font-size:14px;font-weight:600;color:var(--text);">View full analysis</div>
+      <div style="font-size:13px;color:var(--muted);margin-top:2px;">The baseline dataset is loaded as your active session.</div>
+    </div>
+    <a id="viewDashboardBtn" href="#" class="btn-primary">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Open Dashboard
+    </a>
+  </div>
+</div>
+
+<script>
+(function() {
+  let sentimentChart = null;
+  let ratingChart = null;
+
+  function escHtml(v) {
+    if (!v) return '';
+    return String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function cssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  function alpha(hex, opacity) {
+    const value = hex.replace('#', '');
+    const bigint = parseInt(value, 16);
+    const r = (bigint >> 16) & 255;
+    const g = (bigint >> 8) & 255;
+    const b = bigint & 255;
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  }
+
+  function setupCmpZone(zoneId, inputId, nameId, nameClass) {
+    const zone = document.getElementById(zoneId);
+    const input = document.getElementById(inputId);
+    const nameEl = document.getElementById(nameId);
+    if (!zone || !input) return;
+
+    function showName(file) {
+      if (nameEl) {
+        nameEl.textContent = file.name;
+        nameEl.style.display = 'block';
+        nameEl.className = 'cmp-file-name ' + nameClass;
+      }
+      updateHint();
+    }
+
+    zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      zone.classList.remove('drag-over');
+      if (e.dataTransfer.files.length) {
+        const dt = new DataTransfer();
+        dt.items.add(e.dataTransfer.files[0]);
+        input.files = dt.files;
+        showName(e.dataTransfer.files[0]);
+      }
+    });
+    zone.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); }
+    });
+    input.addEventListener('change', () => {
+      if (input.files.length) showName(input.files[0]);
+    });
+  }
+
+  setupCmpZone('cmpZoneA', 'compareFileBaseline', 'cmpFileNameA', 'baseline');
+  setupCmpZone('cmpZoneB', 'compareFile', 'cmpFileNameB', 'candidate');
+
+  function updateHint() {
+    const a = document.getElementById('compareFileBaseline');
+    const b = document.getElementById('compareFile');
+    const hint = document.getElementById('cmpHint');
+    if (!hint) return;
+    const hasA = a && a.files && a.files.length;
+    const hasB = b && b.files && b.files.length;
+    if (hasA && hasB) hint.textContent = 'Ready - click Run Comparison';
+    else if (hasA) hint.textContent = 'Now select a candidate file';
+    else if (hasB) hint.textContent = 'Now select a baseline file';
+    else hint.textContent = 'Select both files to compare';
+  }
+
+  function comparisonDirection(value, positiveWhenUp) {
+    if (value === null || value === undefined || value === 0) return 'flat';
+    const up = value > 0;
+    return positiveWhenUp ? (up ? 'up' : 'down') : (up ? 'down' : 'up');
+  }
+
+  function comparisonSummaryCards(delta) {
+    const cards = [];
+
+    if (delta.positive_pct_delta > 0) {
+      cards.push({
+        label: 'Sentiment gain',
+        title: `Positive sentiment increased by ${Math.abs(delta.positive_pct_delta)}%`,
+        copy: 'The candidate file is generating a healthier positive share than the baseline.',
+      });
+    } else if (delta.positive_pct_delta < 0) {
+      cards.push({
+        label: 'Sentiment drop',
+        title: `Positive sentiment fell by ${Math.abs(delta.positive_pct_delta)}%`,
+        copy: 'The candidate file is converting less feedback into positive sentiment.',
+      });
+    } else {
+      cards.push({
+        label: 'Sentiment stable',
+        title: 'Positive sentiment remained unchanged',
+        copy: 'Overall positive share is holding steady between the two datasets.',
+      });
+    }
+
+    if (delta.negative_pct_delta < 0) {
+      cards.push({
+        label: 'Complaint reduction',
+        title: `Negative complaints reduced by ${Math.abs(delta.negative_pct_delta)}%`,
+        copy: 'The candidate file is showing fewer negative signals than the baseline.',
+      });
+    } else if (delta.negative_pct_delta > 0) {
+      cards.push({
+        label: 'Complaint pressure',
+        title: `Negative sentiment increased by ${Math.abs(delta.negative_pct_delta)}%`,
+        copy: 'The candidate file is surfacing a larger complaint share.',
+      });
+    } else {
+      cards.push({
+        label: 'Complaint baseline',
+        title: 'Negative sentiment stayed flat',
+        copy: 'Complaint share has not shifted between the two files.',
+      });
+    }
+
+    cards.push({
+      label: 'Volume shift',
+      title: delta.total_feedback_delta === 0
+        ? 'Feedback volume stayed level'
+        : `${Math.abs(delta.total_feedback_delta)} ${Math.abs(delta.total_feedback_delta) === 1 ? 'record' : 'records'} ${delta.total_feedback_delta > 0 ? 'added' : 'removed'}`,
+      copy: 'Volume context helps explain whether the change is broad-based or concentrated.',
+    });
+
+    return cards;
+  }
+
+  function renderDeltaCards(delta) {
+    const defs = [
+      { label: 'Volume change', value: delta.total_feedback_delta, suffix: ' records', positiveWhenUp: true },
+      { label: 'Positive sentiment', value: delta.positive_pct_delta, suffix: '%', positiveWhenUp: true },
+      { label: 'Negative sentiment', value: delta.negative_pct_delta, suffix: '%', positiveWhenUp: false },
+      { label: 'Avg rating', value: delta.avg_rating_delta, suffix: '', positiveWhenUp: true },
+    ];
+
+    const container = document.getElementById('deltaCards');
+    if (!container) return;
+
+    container.innerHTML = defs.map((d) => {
+      const v = d.value;
+      const isNull = v === null || v === undefined;
+      const direction = isNull ? 'flat' : comparisonDirection(v, d.positiveWhenUp);
+      const cls = direction === 'up' ? 'delta-up' : direction === 'down' ? 'delta-down' : 'delta-flat';
+      const arrow = isNull ? '->' : v > 0 ? '↑' : v < 0 ? '↓' : '→';
+      const sign = !isNull && v > 0 ? '+' : '';
+      const display = isNull ? 'N/A' : `${sign}${v}${d.suffix}`;
+      const subcopy = d.label === 'Positive sentiment'
+        ? (v > 0 ? 'Stronger upside in customer tone' : v < 0 ? 'Positive share softened' : 'No change in positive share')
+        : d.label === 'Negative sentiment'
+          ? (v < 0 ? 'Complaint share improved' : v > 0 ? 'Complaint share worsened' : 'Complaint share unchanged')
+          : d.label === 'Avg rating'
+            ? (v > 0 ? 'Customer scoring improved' : v < 0 ? 'Customer scoring fell' : 'Ratings held steady')
+            : (v > 0 ? 'Candidate file includes more feedback' : v < 0 ? 'Candidate file includes less feedback' : 'Feedback volume matched');
+
+      return `<div class="delta-card">
+        <div class="delta-card-label">${escHtml(d.label)}</div>
+        <div class="delta-badge ${cls}" role="status" aria-label="${escHtml(d.label)}: ${display}">
+          <span aria-hidden="true">${arrow}</span>${display}
+        </div>
+        <div class="delta-sub">${escHtml(subcopy)}</div>
+      </div>`;
+    }).join('');
+  }
+
+  function renderSummary(delta) {
+    const container = document.getElementById('comparisonSummary');
+    if (!container) return;
+    const cards = comparisonSummaryCards(delta);
+    container.innerHTML = cards.map((card) => `
+      <div class="summary-card">
+        <div class="summary-label">${escHtml(card.label)}</div>
+        <div class="summary-title">${escHtml(card.title)}</div>
+        <div class="summary-copy">${escHtml(card.copy)}</div>
+      </div>
+    `).join('');
+  }
+
+  function renderSbsStats(containerId, analysis) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    const sp = analysis.sentiment_percent || {};
+    const stats = analysis.stats || {};
+    const rows = [
+      ['Total feedback', stats.total ?? '-'],
+      ['Avg length', `${stats.avg_length ?? '-'} chars`],
+      ['Avg rating', analysis.average_rating != null ? `${analysis.average_rating} / 5` : 'N/A'],
+      ['Confidence', `${analysis.overall_confidence ?? '-'}%`],
+      ['Positive', `${sp.Positive ?? 0}%`],
+      ['Negative', `${sp.Negative ?? 0}%`],
+      ['Neutral', `${sp.Neutral ?? 0}%`],
+      ['Mixed', `${sp.Mixed ?? 0}%`],
+    ];
+    el.innerHTML = rows.map(([label, value]) => `
+      <div class="sbs-stat-row">
+        <span class="sbs-stat-label">${escHtml(label)}</span>
+        <span class="sbs-stat-value">${escHtml(String(value))}</span>
+      </div>`).join('');
+  }
+
+  function renderSentimentChart(baseline, candidate) {
+    const canvas = document.getElementById('compareSentimentChart');
+    if (!canvas || typeof Chart === 'undefined') return;
+    if (sentimentChart) sentimentChart.destroy();
+
+    const labels = ['Positive', 'Negative', 'Neutral', 'Mixed'];
+    const baselineValues = labels.map((label) => baseline.sentiment_percent?.[label] || 0);
+    const candidateValues = labels.map((label) => candidate.sentiment_percent?.[label] || 0);
+    const ctx = canvas.getContext('2d');
+
+    sentimentChart = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Baseline',
+            data: baselineValues,
+            backgroundColor: alpha(cssVar('--primary'), 0.7),
+            borderRadius: 10,
+            borderSkipped: false,
+          },
+          {
+            label: 'Candidate',
+            data: candidateValues,
+            backgroundColor: alpha(cssVar('--secondary'), 0.82),
+            borderRadius: 10,
+            borderSkipped: false,
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: true,
+            position: 'bottom',
+            labels: { boxWidth: 10, boxHeight: 10, padding: 14 }
+          },
+          tooltip: {
+            backgroundColor: 'rgba(30,30,36,0.92)',
+            padding: 12,
+            cornerRadius: 10,
+            callbacks: {
+              label(ctx) { return `${ctx.dataset.label}: ${Number(ctx.parsed.y || 0).toFixed(1)}%`; }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { font: { size: window.innerWidth < 640 ? 11 : 12, weight: '600' } },
+            border: { display: false }
+          },
+          y: {
+            beginAtZero: true,
+            suggestedMax: 100,
+            grid: { color: 'rgba(0,0,0,0.05)', drawBorder: false },
+            ticks: {
+              callback(value) { return `${value}%`; },
+              font: { size: window.innerWidth < 640 ? 11 : 12 }
+            },
+            border: { display: false }
+          }
+        }
+      }
+    });
+  }
+
+  function renderRatingChart(baseline, candidate) {
+    const card = document.getElementById('compareRatingCard');
+    const canvas = document.getElementById('compareRatingChart');
+    if (!card || !canvas || typeof Chart === 'undefined') return;
+
+    if (!baseline.rating_distribution || !candidate.rating_distribution) {
+      card.style.display = 'none';
+      if (ratingChart) {
+        ratingChart.destroy();
+        ratingChart = null;
+      }
+      return;
+    }
+
+    card.style.display = 'block';
+    if (ratingChart) ratingChart.destroy();
+
+    const labels = ['1*', '2*', '3*', '4*', '5*'];
+    const baselineValues = [1, 2, 3, 4, 5].map((rating) => baseline.rating_distribution[rating] || baseline.rating_distribution[String(rating)] || 0);
+    const candidateValues = [1, 2, 3, 4, 5].map((rating) => candidate.rating_distribution[rating] || candidate.rating_distribution[String(rating)] || 0);
+
+    ratingChart = new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Baseline',
+            data: baselineValues,
+            borderColor: cssVar('--primary'),
+            backgroundColor: alpha(cssVar('--primary'), 0.16),
+            fill: true,
+            tension: 0.36,
+            pointRadius: 3,
+            pointHoverRadius: 4,
+          },
+          {
+            label: 'Candidate',
+            data: candidateValues,
+            borderColor: cssVar('--secondary'),
+            backgroundColor: alpha(cssVar('--secondary'), 0.14),
+            fill: true,
+            tension: 0.36,
+            pointRadius: 3,
+            pointHoverRadius: 4,
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: true,
+            position: 'bottom',
+            labels: { boxWidth: 10, boxHeight: 10, padding: 14 }
+          },
+          tooltip: {
+            backgroundColor: 'rgba(30,30,36,0.92)',
+            padding: 12,
+            cornerRadius: 10,
+            callbacks: {
+              label(ctx) { return `${ctx.dataset.label}: ${ctx.parsed.y || 0} entries`; }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { font: { size: window.innerWidth < 640 ? 11 : 12, weight: '600' } },
+            border: { display: false }
+          },
+          y: {
+            beginAtZero: true,
+            grid: { color: 'rgba(0,0,0,0.05)', drawBorder: false },
+            ticks: { font: { size: window.innerWidth < 640 ? 11 : 12 } },
+            border: { display: false }
+          }
+        }
+      }
+    });
+  }
+
+  window._onCompareSuccess = function(data, fileAName, fileBName) {
+    const resultsEl = document.getElementById('compareResults');
+    if (resultsEl) resultsEl.style.display = 'block';
+
+    const labelA = document.getElementById('cmpLabelA');
+    const labelB = document.getElementById('cmpLabelB');
+    const titleA = document.getElementById('sbsTitleA');
+    const titleB = document.getElementById('sbsTitleB');
+    if (labelA) labelA.textContent = fileAName || 'Baseline';
+    if (labelB) labelB.textContent = fileBName || 'Candidate';
+    if (titleA) titleA.textContent = fileAName || 'Baseline';
+    if (titleB) titleB.textContent = fileBName || 'Candidate';
+
+    const delta = data.delta || {};
+    const narrative = document.getElementById('comparisonNarrative');
+    if (narrative) {
+      if (delta.positive_pct_delta > 0 && delta.negative_pct_delta < 0) {
+        narrative.textContent = `Positive sentiment improved by ${delta.positive_pct_delta}% while negative complaints reduced by ${Math.abs(delta.negative_pct_delta)}%.`;
+      } else if (delta.positive_pct_delta < 0 && delta.negative_pct_delta > 0) {
+        narrative.textContent = `The candidate dataset shifted in the wrong direction, with weaker positive sentiment and higher complaint share.`;
+      } else {
+        narrative.textContent = `The comparison shows a more balanced shift across sentiment, volume, and rating signals.`;
+      }
+    }
+
+    const sentimentChip = document.getElementById('sentimentCompareChip');
+    if (sentimentChip) sentimentChip.textContent = delta.positive_pct_delta >= 0 ? 'Positive lead' : 'Watch shift';
+
+    renderSummary(delta);
+    renderDeltaCards(delta);
+    renderSbsStats('sbsStatsA', data.baseline);
+    renderSbsStats('sbsStatsB', data.candidate);
+    renderSentimentChart(data.baseline, data.candidate);
+    renderRatingChart(data.baseline, data.candidate);
+
+    const dashBtn = document.getElementById('viewDashboardBtn');
+    if (dashBtn) dashBtn.href = '/dashboard?sid=' + data.session_id;
+
+    resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+})();
+</script>
+{% endblock %}

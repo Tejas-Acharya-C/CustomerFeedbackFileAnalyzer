@@ -1,60 +1,433 @@
 {% extends "base.html" %}
-{% block title %}Neural Analytics{% endblock %}
-
-{% block status_prompt %}Analysis complete. Viewing Neural Analytics.{% endblock %}
+{% block title %}Insights{% endblock %}
+{% block page_title %}Insights{% endblock %}
 
 {% block content %}
-<!-- VIEW: ANALYTICS -->
-<section id="view-analytics" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6 mb-12">
-    <!-- Top Words -->
-    <div class="lg:col-span-4 glass-panel rounded-lg p-6">
-        <h3 class="text-[10px] font-headline uppercase tracking-[0.2em] text-cyan-400 mb-6 drop-shadow-[0_0_5px_rgba(0,219,231,0.5)]">LEXICAL FREQUENCY VECTORS</h3>
-        <ul id="topWords" class="space-y-2 max-h-64 overflow-y-auto w-full">
-            <li class="h-6 bg-surface-container-highest/30 rounded-full w-full animate-pulse"></li>
-            <li class="h-6 bg-surface-container-highest/30 rounded-full w-4/5 animate-pulse delay-75"></li>
-            <li class="h-6 bg-surface-container-highest/30 rounded-full w-3/4 animate-pulse delay-150"></li>
-        </ul>
-    </div>
+<style>
+  .insights-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  @media (max-width: 900px) { .insights-summary { grid-template-columns: 1fr; } }
 
-    <!-- Negative Signals -->
-    <div class="lg:col-span-4 glass-panel rounded-lg p-6">
-        <div class="flex items-center gap-2 mb-6">
-            <span class="w-2 h-2 rounded-full bg-error animate-pulse"></span>
-            <h3 class="text-[10px] font-headline uppercase tracking-[0.2em] text-error drop-shadow-[0_0_5px_rgba(255,180,171,0.4)]">CRITICAL ANOMALY DETECTION</h3>
+  .summary-card {
+    background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.82));
+    border: 1px solid rgba(255,255,255,0.52);
+    border-radius: 14px;
+    padding: 16px 18px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.04);
+  }
+
+  .summary-label {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .summary-title {
+    font-size: 14px;
+    font-weight: 650;
+    color: var(--text);
+    line-height: 1.35;
+    letter-spacing: -0.01em;
+    margin-bottom: 4px;
+  }
+
+  .summary-copy {
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .priority-section {
+    margin-bottom: 20px;
+  }
+
+  .priority-card {
+    background: rgba(255,255,255,0.88);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.5);
+    border-radius: 16px;
+    padding: 22px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.04);
+  }
+
+  .priority-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  @media (max-width: 640px) {
+    .priority-header {
+      flex-direction: column;
+    }
+  }
+
+  .priority-subcopy {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 2px;
+    line-height: 1.5;
+  }
+
+  .priority-pulse {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--primary);
+    box-shadow: 0 0 0 4px rgba(69,86,200,0.14);
+    flex-shrink: 0;
+    margin-top: 4px;
+  }
+
+  .priority-item {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 14px;
+    align-items: start;
+    padding: 16px 0;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+  }
+  .priority-item:first-child { padding-top: 0; }
+  .priority-item:last-child { border-bottom: none; padding-bottom: 0; }
+
+  .priority-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(69,86,200,0.1);
+    color: var(--primary);
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .priority-body { min-width: 0; }
+
+  .priority-title {
+    font-size: 14px;
+    font-weight: 650;
+    color: var(--text);
+    margin-bottom: 5px;
+    letter-spacing: -0.01em;
+  }
+
+  .priority-evidence {
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-bottom: 8px;
+    line-height: 1.45;
+  }
+
+  .priority-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    color: var(--primary);
+    font-weight: 600;
+  }
+
+  .priority-score {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    background: rgba(0,0,0,0.05);
+    padding: 5px 10px;
+    border-radius: 999px;
+    flex-shrink: 0;
+  }
+
+  .signals-grid {
+    display: grid;
+    grid-template-columns: 1.05fr 0.95fr 0.95fr;
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+  @media (max-width: 980px) { .signals-grid { grid-template-columns: 1fr; } }
+
+  .signal-card {
+    background: rgba(255,255,255,0.88);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.5);
+    border-radius: 14px;
+    padding: 18px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.04);
+  }
+
+  .signal-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .signal-subcopy {
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.45;
+    margin-top: 4px;
+  }
+
+  .signal-chip {
+    padding: 5px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    background: rgba(69,86,200,0.08);
+    color: var(--primary);
+    white-space: nowrap;
+  }
+
+  .word-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .word-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: rgba(69,86,200,0.07);
+    color: var(--text);
+    border: 1px solid rgba(69,86,200,0.1);
+    transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+  }
+  .word-tag:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px rgba(0,0,0,0.06);
+    background: rgba(69,86,200,0.1);
+  }
+
+  .word-tag-label {
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .word-tag-count {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--primary);
+    background: rgba(255,255,255,0.7);
+    border-radius: 999px;
+    padding: 3px 7px;
+  }
+
+  .signal-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .signal-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .signal-rank {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.05);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .signal-word { min-width: 0; }
+
+  .signal-word-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 5px;
+  }
+
+  .signal-track {
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(0,0,0,0.06);
+    overflow: hidden;
+  }
+
+  .signal-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  .signal-meta {
+    font-size: 11.5px;
+    color: var(--muted);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .skel { height: 18px; border-radius: 5px; }
+  #zero-state { display: none; }
+  #data-sections { display: none; }
+
+  @media (max-width: 767px) {
+    .priority-card,
+    .signal-card {
+      padding: 18px;
+    }
+    .priority-item {
+      grid-template-columns: auto 1fr;
+    }
+    .priority-score {
+      grid-column: 2;
+      justify-self: flex-start;
+    }
+    .signal-header {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .signal-chip {
+      align-self: flex-start;
+    }
+  }
+
+  @media (max-width: 520px) {
+    .summary-card {
+      padding: 14px 16px;
+    }
+    .word-tag {
+      max-width: 100%;
+    }
+    .word-tag-label {
+      overflow-wrap: anywhere;
+    }
+    .signal-row {
+      grid-template-columns: auto 1fr;
+      align-items: start;
+    }
+    .signal-meta {
+      grid-column: 2;
+      margin-top: 4px;
+    }
+  }
+</style>
+
+<div id="zero-state">
+  <div class="empty-state" style="max-width:400px;margin:0 auto;">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:48px;height:48px;color:var(--border);">
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+    </svg>
+    <div style="font-size:17px;font-weight:700;color:var(--text);letter-spacing:-0.01em;">No analysis loaded</div>
+    <div style="font-size:14px;color:var(--muted);">Run an analysis first to see insights.</div>
+    <a href="/" class="btn-primary" style="margin-top:8px;">Upload a file</a>
+  </div>
+</div>
+
+<div id="data-sections">
+  <div class="insights-summary content-stage" data-stage="shell" id="insightsSummary">
+    <div class="summary-card" aria-hidden="true">
+      <div class="skeleton skel" style="width:45%;margin-bottom:10px;"></div>
+      <div class="skeleton skel" style="width:90%;margin-bottom:8px;"></div>
+      <div class="skeleton skel" style="width:70%;"></div>
+    </div>
+    <div class="summary-card" aria-hidden="true">
+      <div class="skeleton skel" style="width:55%;margin-bottom:10px;"></div>
+      <div class="skeleton skel" style="width:88%;margin-bottom:8px;"></div>
+      <div class="skeleton skel" style="width:68%;"></div>
+    </div>
+    <div class="summary-card" aria-hidden="true">
+      <div class="skeleton skel" style="width:40%;margin-bottom:10px;"></div>
+      <div class="skeleton skel" style="width:86%;margin-bottom:8px;"></div>
+      <div class="skeleton skel" style="width:72%;"></div>
+    </div>
+  </div>
+
+  <div class="priority-section content-stage" data-stage="metrics">
+    <div class="priority-card">
+      <div class="priority-header">
+        <div>
+          <div style="font-size:16px;font-weight:700;color:var(--text);letter-spacing:-0.015em;">Priority Actions</div>
+          <div class="priority-subcopy">Ranked by impact score from your feedback data so the most urgent fixes stay visually dominant.</div>
         </div>
-        <ul id="negativeWords" class="space-y-4 max-h-64 overflow-y-auto">
-            <li class="h-6 bg-error/10 border-l border-error/50 rounded-sm w-full animate-pulse"></li>
-            <li class="h-6 bg-error/10 border-l border-error/50 rounded-sm w-5/6 animate-pulse delay-75"></li>
-        </ul>
+        <div class="priority-pulse" aria-hidden="true"></div>
+      </div>
+      <div id="priorityInsights" role="list" aria-label="Priority actions">
+        <div class="skeleton skel" style="margin-bottom:12px;" aria-hidden="true"></div>
+        <div class="skeleton skel" style="margin-bottom:12px;width:90%;" aria-hidden="true"></div>
+        <div class="skeleton skel" style="width:80%;" aria-hidden="true"></div>
+      </div>
     </div>
+  </div>
 
-    <!-- Category Breakdown -->
-    <div class="lg:col-span-4 glass-panel rounded-lg p-6">
-        <h3 class="text-[10px] font-headline uppercase tracking-[0.2em] text-secondary mb-6 drop-shadow-[0_0_5px_rgba(235,178,255,0.4)]">ARCHITECTURAL CLASSIFICATION DOMAINS</h3>
-        <ul id="categories" class="space-y-4 max-h-64 overflow-y-auto">
-            <li class="h-4 bg-surface-container-highest/40 rounded-full w-full animate-pulse"></li>
-            <li class="h-4 bg-surface-container-highest/40 rounded-full w-1/2 animate-pulse delay-75"></li>
-        </ul>
-    </div>
-
-    <!-- Action Suggestions -->
-    <div class="lg:col-span-12 glass-panel rounded-lg p-6 flex flex-col justify-between">
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div>
-                <h3 class="text-[10px] font-headline uppercase tracking-[0.2em] text-cyan-400 mb-6 drop-shadow-[0_0_5px_rgba(0,219,231,0.5)]">PREDICTIVE NEURAL ARCHITECTURE</h3>
-                <ul id="suggestions" class="space-y-4">
-                    <li class="h-8 bg-surface-container-lowest border-l-2 border-cyan-400/30 rounded-sm w-full animate-pulse"></li>
-                    <li class="h-8 bg-surface-container-lowest border-l-2 border-cyan-400/30 rounded-sm w-3/4 animate-pulse delay-100"></li>
-                </ul>
-            </div>
-            <div>
-                <h3 class="text-[10px] font-headline uppercase tracking-[0.2em] text-error mb-4 drop-shadow-[0_0_5px_rgba(255,180,171,0.4)]">IMMEDIATE VECTOR TARGETS</h3>
-                <ul id="priorityInsights" class="space-y-4">
-                    <li class="h-10 bg-error-container/5 border-l-2 border-error/30 rounded-sm w-full animate-pulse"></li>
-                    <li class="h-10 bg-error-container/5 border-l-2 border-error/30 rounded-sm w-5/6 animate-pulse delay-100"></li>
-                </ul>
-            </div>
+  <div class="signals-grid content-stage" data-stage="insights">
+    <div class="signal-card">
+      <div class="signal-header">
+        <div>
+          <div class="section-heading" id="topWordsHeading">Top Words</div>
+          <div class="signal-subcopy">Most repeated terms across the current dataset.</div>
         </div>
+        <div class="signal-chip" id="topWordsChip">Top terms</div>
+      </div>
+      <div class="word-grid" id="topWords" role="list" aria-labelledby="topWordsHeading">
+        <div class="skeleton skel" style="margin-bottom:8px;width:100%;" aria-hidden="true"></div>
+        <div class="skeleton skel" style="width:86%;" aria-hidden="true"></div>
+      </div>
     </div>
-</section>
+
+    <div class="signal-card">
+      <div class="signal-header">
+        <div>
+          <div class="section-heading" id="posWordsHeading" style="display:flex;align-items:center;gap:6px;">
+            <div style="width:6px;height:6px;border-radius:50%;background:var(--success);" aria-hidden="true"></div>
+            Positive Signals
+          </div>
+          <div class="signal-subcopy">Highest-frequency positive language in the dataset.</div>
+        </div>
+        <div class="signal-chip" style="background:rgba(82,165,107,0.12);color:var(--success);" id="posWordsChip">Strengths</div>
+      </div>
+      <div class="signal-list" id="positiveWords" role="list" aria-labelledby="posWordsHeading">
+        <div class="skeleton skel" style="margin-bottom:8px;background:rgba(82,165,107,0.1);" aria-hidden="true"></div>
+        <div class="skeleton skel" style="width:75%;background:rgba(82,165,107,0.1);" aria-hidden="true"></div>
+      </div>
+    </div>
+
+    <div class="signal-card">
+      <div class="signal-header">
+        <div>
+          <div class="section-heading" id="negWordsHeading" style="display:flex;align-items:center;gap:6px;">
+            <div style="width:6px;height:6px;border-radius:50%;background:var(--error);" aria-hidden="true"></div>
+            Negative Signals
+          </div>
+          <div class="signal-subcopy">Most repeated complaint language in the dataset.</div>
+        </div>
+        <div class="signal-chip" style="background:rgba(200,91,91,0.12);color:var(--error);" id="negWordsChip">Risk</div>
+      </div>
+      <div class="signal-list" id="negativeWords" role="list" aria-labelledby="negWordsHeading">
+        <div class="skeleton skel" style="margin-bottom:8px;background:rgba(200,91,91,0.1);" aria-hidden="true"></div>
+        <div class="skeleton skel" style="width:80%;background:rgba(200,91,91,0.1);" aria-hidden="true"></div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}

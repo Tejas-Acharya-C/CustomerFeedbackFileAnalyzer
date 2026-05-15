@@ -1,43 +1,411 @@
 {% extends "base.html" %}
-{% block title %}Start Analysis{% endblock %}
-
-{% block status_prompt %}Select a file and click Analyze.{% endblock %}
+{% block title %}New Analysis{% endblock %}
+{% block page_title %}Analyze Feedback{% endblock %}
 
 {% block content %}
-<!-- Hero Section -->
-<section class="mb-12 relative overflow-hidden rounded-xl bg-surface-container-lowest p-12 border border-white/5">
-    <div class="relative z-10 flex flex-col md:flex-row justify-between items-end gap-8">
-        <div class="max-w-2xl">
-            <h1 class="text-5xl lg:text-7xl font-headline font-bold tracking-tighter mb-4 text-primary leading-none uppercase drop-shadow-[0_0_15px_rgba(225,253,255,0.4)]">
-                Initialize. <br/> Decode. <br/> <span class="bg-gradient-to-r from-primary-fixed-dim to-secondary bg-clip-text text-transparent">Assimilate.</span>
-            </h1>
-            <p class="text-on-surface-variant text-lg font-light leading-relaxed mb-6 font-headline tracking-widest">
-                Engage neural-powered biometric sentiment extraction and massive-scale temporal lexical vectors.
-            </p>
-        </div>
-        <div class="hidden lg:block w-64 h-64 bg-gradient-to-br from-cyan-500/10 to-transparent rounded-full blur-3xl absolute -right-20 -top-20"></div>
-    </div>
-</section>
+<style>
+  .home-hero {
+    margin-bottom: 28px;
+    max-width: 720px;
+  }
 
-<!-- Toolbar / Control Panel -->
-<section class="mb-12 glass-panel rounded-lg p-6 flex flex-col gap-6">
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div class="space-y-2">
-            <label class="text-[10px] font-headline uppercase tracking-widest text-zinc-400">Primary Dataset</label>
-            <div class="relative group">
-                <input id="feedbackFile" class="w-full bg-surface-container-lowest border-0 rounded-sm text-sm px-4 py-3 focus:ring-0 cursor-pointer text-cyan-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-cyan-500/10 file:text-cyan-400 hover:file:bg-cyan-500/20" type="file" accept=".txt,.csv,text/plain,text/csv"/>
-            </div>
+  .home-hero h2 {
+    font-size: 34px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    color: var(--text);
+    margin: 0 0 8px;
+  }
+
+  .home-hero p {
+    font-size: 15px;
+    color: var(--muted);
+    line-height: 1.6;
+    max-width: 520px;
+    margin: 0;
+  }
+
+  @media (max-width: 600px) {
+    .home-hero { margin-bottom: 22px; }
+    .home-hero h2 { font-size: 26px; }
+    .home-hero p { font-size: 14px; }
+  }
+
+  /* ── Upload card ── */
+  .upload-card {
+    background: rgba(255,255,255,0.88);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.5);
+    border-radius: 14px;
+    padding: 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.04);
+    margin-bottom: 16px;
+  }
+  @media (min-width: 1400px) {
+    .upload-card,
+    .compare-section {
+      max-width: 1120px;
+    }
+  }
+
+  .upload-card-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--muted);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .upload-zone-inner {
+    position: relative;
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 28px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: rgba(245,244,241,0.5);
+  }
+  @media (max-width: 640px) {
+    .upload-zone-inner {
+      padding: 24px 16px;
+    }
+  }
+
+  .upload-zone-inner:hover,
+  .upload-zone-inner.drag-over {
+    border-color: var(--primary);
+    background: rgba(69,86,200,0.04);
+  }
+
+  .upload-zone-inner input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+
+  .upload-icon {
+    width: 32px; height: 32px;
+    margin: 0 auto 10px;
+    color: var(--muted);
+    opacity: 0.4;
+  }
+
+  .upload-filename {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--primary);
+    margin-top: 8px;
+    display: none;
+  }
+
+  .format-hint {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .format-tag {
+    display: inline-block;
+    padding: 2px 7px;
+    background: rgba(0,0,0,0.05);
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: monospace;
+    color: var(--muted);
+  }
+
+  /* ── Compare section ── */
+  .compare-section {
+    background: rgba(255,255,255,0.88);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.5);
+    border-radius: 14px;
+    padding: 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.04);
+  }
+
+  .compare-heading {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.01em;
+    margin-bottom: 4px;
+  }
+
+  .compare-sub {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 18px;
+    line-height: 1.5;
+  }
+
+  .compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+
+  @media (max-width: 720px) {
+    .compare-grid { grid-template-columns: 1fr; }
+    .compare-upload-zone { padding: 14px 12px; }
+  }
+
+  @media (max-width: 520px) {
+    .upload-card,
+    .compare-section { padding: 18px; }
+    .compare-upload-zone {
+      align-items: flex-start;
+    }
+  }
+
+  .compare-upload-zone {
+    position: relative;
+    border: 1.5px dashed var(--border);
+    border-radius: 10px;
+    padding: 14px 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: rgba(245,244,241,0.4);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .compare-upload-zone:hover {
+    border-color: var(--secondary);
+    background: rgba(62,142,138,0.04);
+  }
+
+  .compare-upload-zone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+
+  .compare-upload-icon {
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .compare-file-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--secondary);
+    display: none;
+    margin-top: 2px;
+  }
+
+  .zone-label {
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+
+  .home-action-row,
+  .compare-action-row {
+    display:flex;
+    gap:10px;
+    align-items:center;
+    flex-wrap:wrap;
+  }
+
+  @media (max-width: 640px) {
+    .home-action-row,
+    .compare-action-row {
+      align-items: stretch;
+    }
+    .home-action-row .btn-primary,
+    .compare-action-row .btn-secondary {
+      width: 100%;
+    }
+  }
+</style>
+
+<!-- Hero -->
+<div class="home-hero">
+  <h2>Analyze Customer Feedback</h2>
+  <p>Upload a feedback file and uncover sentiment trends, category patterns, and actionable business insights in seconds.</p>
+</div>
+
+<!-- Primary upload -->
+<div class="upload-card">
+  <div class="upload-card-label">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    Upload Feedback File
+  </div>
+
+  <div class="upload-zone-inner" id="primaryDropZone" role="button" tabindex="0"
+       aria-label="Upload feedback file — drop here or press Enter to browse">
+    <input type="file" id="feedbackFile" accept=".txt,.csv,text/plain,text/csv"
+           aria-label="Select feedback file (.txt or .csv)" />
+    <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="17 8 12 3 7 8"/>
+      <line x1="12" y1="3" x2="12" y2="15"/>
+    </svg>
+    <div style="font-size:14px;font-weight:500;color:var(--text);">Drop your file here, or <span style="color:var(--primary);font-weight:600;">browse</span></div>
+    <div style="font-size:12.5px;color:var(--muted);margin-top:4px;">Supports .csv and .txt · Max 5 MB</div>
+    <div id="primaryFileName" class="upload-filename" aria-live="polite"></div>
+  </div>
+
+  <div class="home-action-row" style="margin-top:16px;">
+    <button class="btn-primary" id="refreshBtn" aria-label="Analyze the uploaded feedback file">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Analyze Feedback
+    </button>
+    <span style="font-size:12px;color:var(--muted);" id="uploadHint"></span>
+  </div>
+</div>
+
+<!-- Compare section -->
+<div class="compare-section">
+  <div class="compare-heading">Compare Two Datasets</div>
+  <div class="compare-sub">Upload a baseline and a candidate file to see how sentiment, volume, and ratings changed between them.</div>
+
+  <div class="compare-grid">
+    <!-- Baseline -->
+    <div>
+      <div class="zone-label">Baseline</div>
+      <div class="compare-upload-zone" id="compareZoneA" role="button" tabindex="0"
+           aria-label="Upload baseline dataset">
+        <input type="file" id="compareFileBaseline" accept=".txt,.csv,text/plain,text/csv"
+               aria-label="Select baseline file (.txt or .csv)" />
+        <div class="compare-upload-icon" style="background:rgba(69,86,200,0.1);">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
         </div>
-        <div class="space-y-2">
-            <label class="text-[10px] font-headline uppercase tracking-widest text-zinc-400">Comparative Node</label>
-            <div class="relative group">
-                <input id="compareFile" class="w-full bg-surface-container-lowest border-0 rounded-sm text-sm px-4 py-3 focus:ring-0 cursor-pointer text-secondary file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-secondary/10 file:text-secondary hover:file:bg-secondary/20" type="file" accept=".txt,.csv,text/plain,text/csv"/>
-            </div>
+        <div>
+          <div style="font-size:13px;font-weight:500;color:var(--text);">Baseline file</div>
+          <div id="compareFileNameA" class="compare-file-name"></div>
+          <div style="font-size:11.5px;color:var(--muted);">.csv or .txt</div>
         </div>
-        <div class="flex items-end gap-2 lg:col-span-2">
-            <button class="flex-1 py-3 bg-gradient-to-r from-primary-fixed-dim to-primary text-on-primary-fixed font-headline text-xs uppercase tracking-[0.2em] rounded-sm font-bold neon-glow-cyan transition-transform active:scale-95 shadow-[0_0_15px_rgba(0,219,231,0.4)]" id="refreshBtn">ENGAGE HYPER-ANALYSIS</button>
-            <button class="flex-1 py-3 bg-surface-container-highest/40 backdrop-blur-md border border-white/10 text-primary font-headline text-xs uppercase tracking-[0.2em] rounded-sm font-bold transition-all hover:bg-surface-container-highest/60 hover:shadow-[0_0_15px_rgba(255,255,255,0.1)]" id="compareBtn">RUN DIFFERENTIAL</button>
-        </div>
+      </div>
     </div>
-</section>
+
+    <!-- Candidate -->
+    <div>
+      <div class="zone-label">Candidate</div>
+      <div class="compare-upload-zone" id="compareZoneB" style="border-color:rgba(62,142,138,0.3);"
+           role="button" tabindex="0" aria-label="Upload candidate dataset">
+        <input type="file" id="compareFile" accept=".txt,.csv,text/plain,text/csv"
+               aria-label="Select candidate file (.txt or .csv)" />
+        <div class="compare-upload-icon" style="background:rgba(62,142,138,0.1);">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--secondary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        </div>
+        <div>
+          <div style="font-size:13px;font-weight:500;color:var(--text);">Candidate file</div>
+          <div id="compareFileNameB" class="compare-file-name"></div>
+          <div style="font-size:11.5px;color:var(--muted);">.csv or .txt</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="compare-action-row">
+    <button class="btn-secondary" id="compareBtn" aria-label="Compare the two uploaded datasets">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      Compare Datasets
+    </button>
+    <span style="font-size:12px;color:var(--muted);" id="compareHint">Select both files to compare</span>
+  </div>
+</div>
+
+<script>
+  // ── Drop zone setup ──────────────────────────────────────────────
+  function setupDropZone(zoneId, inputId, nameId, hintId) {
+    const zone = document.getElementById(zoneId);
+    const input = document.getElementById(inputId);
+    const nameEl = document.getElementById(nameId);
+    const hint = hintId ? document.getElementById(hintId) : null;
+    if (!zone || !input) return;
+
+    function showFile(name) {
+      if (nameEl) { nameEl.textContent = name; nameEl.style.display = 'block'; }
+      if (hint) hint.textContent = name + ' selected';
+    }
+
+    zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', (e) => {
+      e.preventDefault(); zone.classList.remove('drag-over');
+      if (e.dataTransfer.files.length) {
+        const dt = new DataTransfer(); dt.items.add(e.dataTransfer.files[0]);
+        input.files = dt.files; showFile(e.dataTransfer.files[0].name);
+      }
+    });
+    zone.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); }
+    });
+    input.addEventListener('change', () => {
+      if (input.files.length) showFile(input.files[0].name);
+    });
+  }
+
+  setupDropZone('primaryDropZone', 'feedbackFile', 'primaryFileName', 'uploadHint');
+
+  // Compare zones
+  ['compareZoneA', 'compareZoneB'].forEach(zoneId => {
+    const zone = document.getElementById(zoneId);
+    if (zone) {
+      zone.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); zone.querySelector('input[type="file"]')?.click(); }
+      });
+    }
+  });
+
+  const compareInputA = document.getElementById('compareFileBaseline');
+  const compareInputB = document.getElementById('compareFile');
+
+  function updateCompareHint() {
+    const hint = document.getElementById('compareHint');
+    if (!hint) return;
+    const hasA = compareInputA && compareInputA.files && compareInputA.files.length;
+    const hasB = compareInputB && compareInputB.files && compareInputB.files.length;
+    if (hasA && hasB) hint.textContent = 'Ready — click Compare Datasets';
+    else if (hasA) hint.textContent = 'Now select a candidate file';
+    else if (hasB) hint.textContent = 'Now select a baseline file';
+    else hint.textContent = 'Select both files to compare';
+  }
+
+  if (compareInputA) {
+    compareInputA.addEventListener('change', () => {
+      const el = document.getElementById('compareFileNameA');
+      if (el && compareInputA.files.length) { el.textContent = compareInputA.files[0].name; el.style.display = 'block'; }
+      updateCompareHint();
+    });
+  }
+  if (compareInputB) {
+    compareInputB.addEventListener('change', () => {
+      const el = document.getElementById('compareFileNameB');
+      if (el && compareInputB.files.length) { el.textContent = compareInputB.files[0].name; el.style.display = 'block'; }
+      updateCompareHint();
+    });
+  }
+</script>
 {% endblock %}
